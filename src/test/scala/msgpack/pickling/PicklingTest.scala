@@ -29,6 +29,8 @@ class PicklingTest extends PicklingSpec {
       val p = Person(1, "leo")
       debug(p)
 
+      import json._
+      
       val pckl = p.pickle
       val pp = pckl.unpickle[Person]
       debug(pp)
