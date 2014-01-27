@@ -15,6 +15,7 @@ package msgpack {
 
 import scala.pickling.binary.{ByteArrayBuffer, ByteArray, BinaryPickleFormat}
 import scala.collection.mutable.ArrayBuffer
+import java.nio.ByteBuffer
 
 case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     type ValueType = Array[Byte]
@@ -25,63 +26,70 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
   }
 
 
-  trait MsgPackOutput extends Output[Array[Byte]] {
 
-    def encodeByteTo(pos:Int, b:Byte)
-
-  }
-
-  class MsgPackOutputArray(size:Int) extends MsgPackOutput {
-
-    private val arr = new Array[Byte](size)
-
-    def result() = arr
-
-    def put(obj: Array[Byte]) = ???
-
-    def encodeByteTo(pos: Int, b: Byte) =
-
-
-  }
-  class MsgPackOutputBuffer extends MsgPackOutput {
-    private val b = ArrayBuffer[Byte]()
-
-    def result() = ???
-
-    def put(obj: Array[Byte]) = ???
-  }
-
-
-
-  class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:MsgPackOutput) extends PBuilder with PickleTools {
+  class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:MsgPackWriter) extends PBuilder with PickleTools {
     import format._
 
-    private var byteBuffer: MsgPackOutput = out
+    private var byteBuffer: MsgPackWriter = out
 
     private var pos = 0
 
     @inline private[this] def mkByteBuffer(knownSize: Int): Unit =
       if (byteBuffer == null) {
-        byteBuffer = if (knownSize != -1) new MsgPackOutputArray(knownSize) else new MsgPackOutputBuffer
+        byteBuffer = if (knownSize != -1) new MsgPackOutputArray(knownSize) else new MsgPackOutputBuffer      }
+
+    private def encodeInt(d:Int) = {
+      if (d < -(1 << 5)) {
+        if (d < -(1 << 15)) {
+          // signed 32
+          out.writeByteAndInt((byte) 0xd2, d);
+        } else if (d < -(1 << 7)) {
+          // signed 16
+          out.writeByteAndShort((byte) 0xd1, (short) d);
+        } else {
+          // signed 8
+          out.writeByteAndByte((byte) 0xd0, (byte) d);
+        }
+      } else if (d < (1 << 7)) {
+        // fixnum
+        out.writeByte((byte) d);
+      } else {
+        if (d < (1 << 8)) {
+          // unsigned 8
+          out.writeByteAndByte((byte) 0xcc, (byte) d);
+        } else if (d < (1 << 16)) {
+          // unsigned 16
+          out.writeByteAndShort((byte) 0xcd, (short) d);
+        } else {
+          // unsigned 32
+          out.writeByteAndInt((byte) 0xce, d);
+        }
       }
+    }
+
 
     def beginEntry(picklee: Any) = withHints { hints =>
       mkByteBuffer(hints.knownSize)
 
       if(picklee == null) {
         byteBuffer.encodeByteTo(pos, F_NULL)
-        pos = pos + 1
+        pos += 1
       }
       else if (hints.oid != -1) {
+        // Has object ID
         val oid = hints.oid
-        //if(oid <= 0)
-
-
-
+        // TODO Integer compaction
+        byteBuffer.encodeByteTo(pos, F_FIXEXT4)
+        pos += 1
+        byteBuffer.encodeByteTo(pos, F_OBJREF)
+        pos += 1
+        byteBuffer.encodeIntTo(pos, hints.oid)
+        pos += 4
       } else {
         if(!hints.isElidedType) {
+          // Type name is present
           val tpeBytes = hints.tag.key.getBytes("UTF-8")
-          byteBuffer.encode
+          byteBuffer.encodeByteTo(pos, )
 
 
         }
@@ -148,12 +156,29 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
   class MsgPackPickleFormat extends PickleFormat {
 
     val F_NULL : Byte = 0xC0.toByte
+    val F_OBJREF : Byte = 0.toByte
 
+    val F_UINT8 : Byte = 0xCC.toByte
+    val F_UINT16 : Byte = 0xCD.toByte
+    val F_UINT32 : Byte = 0xCE.toByte
+    val F_UINT64 : Byte = 0xCF.toByte
+    
+    val F_INT8 : Byte = 0xD0.toByte
+    val F_INT16 : Byte = 0xD1.toByte
+    val F_INT32 : Byte = 0xD2.toByte
+    val F_INT64 : Byte = 0xD3.toByte
+
+
+    val F_FIXEXT1 : Byte = 0xD4.toByte
+    val F_FIXEXT2 : Byte = 0xD5.toByte
+    val F_FIXEXT4 : Byte = 0xD6.toByte
+    val F_FIXEXT8 : Byte = 0xD7.toByte
+    val F_FIXEXT16 : Byte = 0xD8.toByte
 
 
 
     type PickleType = MsgPackPickle
-    type OutputType = MsgPackOutput
+    type OutputType = MsgPackWriter
 
     def createReader(pickle: PickleType, mirror: Mirror) = new MsgPackPickleReader(pickle.value, mirror, this)
 
