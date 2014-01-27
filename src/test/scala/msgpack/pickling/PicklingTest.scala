@@ -24,19 +24,45 @@ class PicklingTest extends PicklingSpec {
 
   "Pickling" should {
 
-    "serialize objects" in {
+    "serialize objects in JSON format" in {
 
       val p = Person(1, "leo")
-      debug(p)
 
       import json._
-      
+
       val pckl = p.pickle
+      debug(pckl)
       val pp = pckl.unpickle[Person]
       debug(pp)
 
       p shouldBe pp
     }
+
+    "serialize objects in the default binary format" in {
+
+      val p = Person(1, "leo")
+
+
+      import binary._
+
+      val pckl = p.pickle
+
+      def toHEX(b:Array[Byte]) = b.map(c => f"$c%x").mkString
+
+      debug(toHEX(pckl.value))
+      val pp = pckl.unpickle[Person]
+      debug(pp)
+
+      p shouldBe pp
+    }
+
+
+    "serialize objects in msgpack format" in {
+
+      pending
+
+    }
+
 
   }
 
