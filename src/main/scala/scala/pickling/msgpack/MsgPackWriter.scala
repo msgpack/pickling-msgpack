@@ -27,6 +27,7 @@ abstract class MsgPackWriter extends Output[Array[Byte]] {
   def writeFloat(v:Float) : Unit
   def writeDouble(v:Double) : Unit
 
+  def write(b:Array[Byte]) : Unit = write(b, 0, b.length)
   def write(b:Array[Byte], off:Int, len:Int) : Unit
   def write(bb:ByteBuffer) : Unit
 }
@@ -99,7 +100,7 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
     }
   }
 
-  def result() = ???
+  def result() = buffer
 
   def put(obj: Array[Byte]) = ???
 

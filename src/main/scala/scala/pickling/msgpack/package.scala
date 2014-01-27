@@ -1,6 +1,7 @@
 package scala.pickling
 
 import scala.reflect.runtime.universe.Mirror
+import scala.language.implicitConversions
 
 /**
  * @author Taro L. Saito
@@ -38,31 +39,31 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
       if (byteBuffer == null) {
         byteBuffer = if (knownSize != -1) new MsgPackOutputArray(knownSize) else new MsgPackOutputBuffer      }
 
-    private def encodeInt(d:Int) = {
+    private def packInt(d:Int) = {
       if (d < -(1 << 5)) {
         if (d < -(1 << 15)) {
           // signed 32
-          out.writeByteAndInt((byte) 0xd2, d);
+          out.writeByteAndInt(F_INT32, d)
         } else if (d < -(1 << 7)) {
           // signed 16
-          out.writeByteAndShort((byte) 0xd1, (short) d);
+          out.writeByteAndShort(F_INT16, d.toShort)
         } else {
           // signed 8
-          out.writeByteAndByte((byte) 0xd0, (byte) d);
+          out.writeByteAndByte(F_INT8, d.toByte)
         }
       } else if (d < (1 << 7)) {
         // fixnum
-        out.writeByte((byte) d);
+        out.writeByte(d.toByte)
       } else {
         if (d < (1 << 8)) {
           // unsigned 8
-          out.writeByteAndByte((byte) 0xcc, (byte) d);
+          out.writeByteAndByte(F_UINT8, d.toByte)
         } else if (d < (1 << 16)) {
           // unsigned 16
-          out.writeByteAndShort((byte) 0xcd, (short) d);
+          out.writeByteAndShort(F_UINT16, d.toShort)
         } else {
           // unsigned 32
-          out.writeByteAndInt((byte) 0xce, d);
+          out.writeByteAndInt(F_UINT32, d)
         }
       }
     }
@@ -71,27 +72,21 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     def beginEntry(picklee: Any) = withHints { hints =>
       mkByteBuffer(hints.knownSize)
 
-      if(picklee == null) {
-        byteBuffer.encodeByteTo(pos, F_NULL)
-        pos += 1
-      }
+      if(picklee == null)
+        byteBuffer.writeByte(F_NULL)
       else if (hints.oid != -1) {
         // Has object ID
         val oid = hints.oid
         // TODO Integer compaction
-        byteBuffer.encodeByteTo(pos, F_FIXEXT4)
-        pos += 1
-        byteBuffer.encodeByteTo(pos, F_OBJREF)
-        pos += 1
-        byteBuffer.encodeIntTo(pos, hints.oid)
-        pos += 4
+        byteBuffer.writeByte(F_FIXEXT4)
+        byteBuffer.writeByte(F_OBJREF)
+        byteBuffer.writeInt(hints.oid)
       } else {
         if(!hints.isElidedType) {
           // Type name is present
           val tpeBytes = hints.tag.key.getBytes("UTF-8")
-          byteBuffer.encodeByteTo(pos, )
-
-
+          packInt(tpeBytes.length)
+          byteBuffer.write(tpeBytes)
         }
 
 
