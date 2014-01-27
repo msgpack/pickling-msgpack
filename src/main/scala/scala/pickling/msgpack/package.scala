@@ -8,12 +8,13 @@ import scala.reflect.runtime.universe.Mirror
 package object msgpack {
 
   implicit val msgpackFormat = new MsgPackPickleFormat
-
+  implicit def toMsgPackPickle(value:Array[Byte]) : MsgPackPickle = MsgPackPickle(value)
 }
 
 package msgpack {
 
-import scala.pickling.binary.BinaryPickleFormat
+import scala.pickling.binary.{ByteArrayBuffer, ByteArray, BinaryPickleFormat}
+import scala.collection.mutable.ArrayBuffer
 
 case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     type ValueType = Array[Byte]
@@ -23,20 +24,100 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     override def toString = s"""MsgPackPickle(${toHEX(value)})"""
   }
 
-  class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:EncodingOutput[Array[Byte]]) extends PBuilder with PickleTools {
-    def beginEntry(picklee: Any) = ???
 
-    def putField(name: String, pickler: (PBuilder) => Unit) = ???
+  trait MsgPackOutput extends Output[Array[Byte]] {
 
-    def endEntry() = ???
+    def encodeByteTo(pos:Int, b:Byte)
 
-    def beginCollection(length: Int) = ???
+  }
 
-    def putElement(pickler: (PBuilder) => Unit) = ???
+  class MsgPackOutputArray(size:Int) extends MsgPackOutput {
 
-    def endCollection() = ???
+    private val arr = new Array[Byte](size)
+
+    def result() = arr
+
+    def put(obj: Array[Byte]) = ???
+
+    def encodeByteTo(pos: Int, b: Byte) =
+
+
+  }
+  class MsgPackOutputBuffer extends MsgPackOutput {
+    private val b = ArrayBuffer[Byte]()
 
     def result() = ???
+
+    def put(obj: Array[Byte]) = ???
+  }
+
+
+
+  class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:MsgPackOutput) extends PBuilder with PickleTools {
+    import format._
+
+    private var byteBuffer: MsgPackOutput = out
+
+    private var pos = 0
+
+    @inline private[this] def mkByteBuffer(knownSize: Int): Unit =
+      if (byteBuffer == null) {
+        byteBuffer = if (knownSize != -1) new MsgPackOutputArray(knownSize) else new MsgPackOutputBuffer
+      }
+
+    def beginEntry(picklee: Any) = withHints { hints =>
+      mkByteBuffer(hints.knownSize)
+
+      if(picklee == null) {
+        byteBuffer.encodeByteTo(pos, F_NULL)
+        pos = pos + 1
+      }
+      else if (hints.oid != -1) {
+        val oid = hints.oid
+        //if(oid <= 0)
+
+
+
+      } else {
+        if(!hints.isElidedType) {
+          val tpeBytes = hints.tag.key.getBytes("UTF-8")
+          byteBuffer.encode
+
+
+        }
+
+
+      }
+
+      this
+    }
+
+    @inline def putField(name: String, pickler: PBuilder => Unit) = {
+      pickler(this)
+      this
+    }
+
+    def endEntry() : Unit = { /* do nothing */ }
+
+    def beginCollection(length: Int) : PBuilder = {
+      // FIXME
+      byteBuffer.encodeIntTo(pos, length)
+      pos += 4
+      this
+    }
+
+    def putElement(pickler: (PBuilder) => Unit) = {
+      pickler(this)
+      this
+    }
+
+    def endCollection() : Unit = {
+
+    }
+
+    def result() = {
+      MsgPackPickle(byteBuffer.result())
+    }
   }
 
 
@@ -66,8 +147,13 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
   class MsgPackPickleFormat extends PickleFormat {
 
+    val F_NULL : Byte = 0xC0.toByte
+
+
+
+
     type PickleType = MsgPackPickle
-    type OutputType = EncodingOutput[Array[Byte]]
+    type OutputType = MsgPackOutput
 
     def createReader(pickle: PickleType, mirror: Mirror) = new MsgPackPickleReader(pickle.value, mirror, this)
 
