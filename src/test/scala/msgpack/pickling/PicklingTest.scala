@@ -32,7 +32,7 @@ class PicklingTest extends PicklingSpec {
       val pckl = p.pickle
       val pp = pckl.unpickle[Person]
       debug(pp)
-      
+
       p shouldBe pp
     }
 

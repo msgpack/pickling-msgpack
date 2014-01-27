@@ -12,6 +12,6 @@ import scala.pickling.PickleFormat
 /**
  * @author Taro L. Saito
  */
-class MsgPackFormat extends PickleFormat {
+abstract class MsgPackFormat extends PickleFormat {
   //def createReader(pickle: MsgPackFormat#PickleType, mirror: runtime.type#Mirror) = ???
 }
