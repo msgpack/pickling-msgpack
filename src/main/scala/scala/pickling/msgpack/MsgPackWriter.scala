@@ -80,55 +80,123 @@ class MsgPackOutputArray(size:Int) extends MsgPackWriter {
 }
 
 class MsgPackOutputBuffer() extends MsgPackWriter {
-  private var buffer : Array[Byte]
-  private var cursor = 0
-  private var bufferSize = 0
-  private var wrap : ByteBuffer
+  private var buffer : Array[Byte] = null
+  private var capacity = 0
+  private var size = 0
+  private var wrap : ByteBuffer = null
 
-  private def allocateNewBuffer {
-    buffer = new Array[Byte](bufferSize)
+  private def makeBuffer(size:Int) : Array[Byte] = {
+    val newBuffer = new Array[Byte](size)
+    if(this.size > 0)
+      Array.copy(buffer, 0, newBuffer, 0, this.size)
+    newBuffer
+  }
+
+  private def resize(size:Int) {
+    buffer = makeBuffer(size)
+    capacity = size
     wrap = ByteBuffer.wrap(buffer)
   }
 
-  private def reserve(len:Int) {
-    if(buffer == null)
-      allocateNewBuffer
-    else {
-      if(bufferSize - cursor < len) {
-
-      }
+  private def ensureSize(size:Int) {
+    if(capacity < size || capacity == 0) {
+      var newSize = if(capacity == 0) 16 else capacity * 2
+      while(newSize < size) newSize *= 2
+      resize(newSize)
     }
   }
 
-  def result() = buffer
+
+  def result() = {
+    if(size == 0)
+      Array.empty[Byte]
+    if(size == buffer.length)
+      buffer
+    else {
+      val ret = new Array[Byte](size)
+      Array.copy(buffer, 0, ret, 0, size)
+      ret
+    }
+  }
 
   def put(obj: Array[Byte]) = ???
 
-  def writeByteAndByte(b: Byte, v: Byte) = ???
+  def writeByteAndByte(b: Byte, v: Byte) = {
+    writeByte(b)
+    writeByte(v)
+  }
 
-  def writeByteAndShort(b: Byte, v: Short) = ???
+  def writeByteAndShort(b: Byte, v: Short) = {
+    writeByte(b)
+    writeShort(v)
+  }
 
-  def writeByteAndInt(b: Byte, v: Int) = ???
+  def writeByteAndInt(b: Byte, v: Int) = {
+    writeByte(b)
+    writeInt(v)
+  }
 
-  def writeByteAndLong(b: Byte, v: Long) = ???
+  def writeByteAndLong(b: Byte, v: Long) = {
+    writeByte(b)
+    writeLong(v)
+  }
 
-  def writeByteAndFloat(b: Byte, v: Float) = ???
+  def writeByteAndFloat(b: Byte, v: Float) = {
+    writeByte(b)
+    writeFloat(v)
+  }
 
-  def writeByteAndDouble(b: Byte, v: Double) = ???
+  def writeByteAndDouble(b: Byte, v: Double) = {
+    writeByte(b)
+    writeDouble(v)
+  }
 
-  def writeByte(v: Byte) = ???
+  def writeByte(v: Byte) = {
+    ensureSize(size + 1)
+    wrap.put(size, v)
+    size += 1
+  }
 
-  def writeShort(v: Short) = ???
+  def writeShort(v: Short) = {
+    ensureSize(size + 2)
+    wrap.putShort(size, v)
+    size += 2
+  }
 
-  def writeInt(v: Int) = ???
+  def writeInt(v: Int) = {
+    ensureSize(size + 4)
+    wrap.putInt(size, v)
+    size += 4
+  }
 
-  def writeLong(v: Long) = ???
+  def writeLong(v: Long) = {
+    ensureSize(size + 8)
+    wrap.putLong(size, v)
+    size += 8
+  }
 
-  def writeFloat(v: Float) = ???
+  def writeFloat(v: Float) = {
+    ensureSize(size + 4)
+    wrap.putFloat(size, v)
+    size += 4
+  }
 
-  def writeDouble(v: Double) = ???
+  def writeDouble(v: Double) = {
+    ensureSize(size + 8)
+    wrap.putDouble(size, v)
+    size += 8
+  }
 
-  def write(b: Array[Byte], off: Int, len: Int) = ???
+  def write(b: Array[Byte], off: Int, len: Int) = {
+    ensureSize(size + len)
+    wrap.put(b, off, len)
+    size += len
+  }
 
-  def write(bb: ByteBuffer) = ???
+  def write(bb: ByteBuffer) = {
+    val len = bb.remaining()
+    ensureSize(size + len)
+    wrap.put(bb)
+    size += len
+  }
 }
