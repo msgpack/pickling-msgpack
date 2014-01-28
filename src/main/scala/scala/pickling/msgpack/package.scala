@@ -103,9 +103,16 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     def endEntry() : Unit = { /* do nothing */ }
 
     def beginCollection(length: Int) : PBuilder = {
-      // FIXME
-      byteBuffer.encodeIntTo(pos, length)
-      pos += 4
+      if(length < (1 << 4))
+        byteBuffer.writeByte((F_ARRAY_PREFIX | length).toByte)
+      else if(length < (1 << 16)) {
+        byteBuffer.writeByte(F_ARRAY16)
+        byteBuffer.writeShort(length.toShort)
+      }
+      else {
+        byteBuffer.writeByte(F_ARRAY32)
+        byteBuffer.writeInt(length)
+      }
       this
     }
 
@@ -115,7 +122,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     }
 
     def endCollection() : Unit = {
-
+      // do nothing
     }
 
     def result() = {
@@ -170,7 +177,9 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     val F_FIXEXT8 : Byte = 0xD7.toByte
     val F_FIXEXT16 : Byte = 0xD8.toByte
 
-
+    val F_ARRAY_PREFIX : Byte = 0x90.toByte
+    val F_ARRAY16 : Byte = 0xDC.toByte
+    val F_ARRAY32 : Byte = 0xDD.toByte
 
     type PickleType = MsgPackPickle
     type OutputType = MsgPackWriter
