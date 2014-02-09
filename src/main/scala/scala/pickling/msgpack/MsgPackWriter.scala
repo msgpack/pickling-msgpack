@@ -22,6 +22,7 @@ abstract class MsgPackWriter extends Output[Array[Byte]] {
 
   def writeByte(v:Byte) : Unit
   def writeShort(v:Short) : Unit
+  def writeChar(v:Char) : Unit
   def writeInt(v:Int) : Unit
   def writeLong(v:Long) : Unit
   def writeFloat(v:Float) : Unit
@@ -66,6 +67,7 @@ class MsgPackOutputArray(size:Int) extends MsgPackWriter {
   def writeByte(v: Byte) = arr.put(v)
   def writeShort(v: Short) = arr.putShort(v)
   def writeInt(v: Int) = arr.putInt(v)
+  def writeChar(v:Char) = arr.putChar(v)
   def writeLong(v: Long) = arr.putLong(v)
   def writeFloat(v: Float) = arr.putFloat(v)
   def writeDouble(v: Double) = arr.putDouble(v)
@@ -167,6 +169,11 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
     ensureSize(size + 4)
     wrap.putInt(size, v)
     size += 4
+  }
+  def writeChar(v:Char) = {
+    ensureSize(size + 2)
+    wrap.putChar(size, v)
+    size += 2
   }
 
   def writeLong(v: Long) = {

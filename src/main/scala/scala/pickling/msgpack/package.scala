@@ -39,34 +39,109 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
       if (byteBuffer == null) {
         byteBuffer = if (knownSize != -1) new MsgPackOutputArray(knownSize) else new MsgPackOutputBuffer      }
 
-    private def packInt(d:Int) = {
+    /**
+     * Pack and write an integer value then returns written byte size
+     * @param d
+     * @return byte size written
+     */
+    private def packInt(d:Int) : Int = {
       if (d < -(1 << 5)) {
         if (d < -(1 << 15)) {
           // signed 32
           out.writeByteAndInt(F_INT32, d)
+          5
         } else if (d < -(1 << 7)) {
           // signed 16
           out.writeByteAndShort(F_INT16, d.toShort)
+          3
         } else {
           // signed 8
           out.writeByteAndByte(F_INT8, d.toByte)
+          2
         }
       } else if (d < (1 << 7)) {
         // fixnum
         out.writeByte(d.toByte)
+        1
       } else {
         if (d < (1 << 8)) {
           // unsigned 8
           out.writeByteAndByte(F_UINT8, d.toByte)
+          2
         } else if (d < (1 << 16)) {
           // unsigned 16
           out.writeByteAndShort(F_UINT16, d.toShort)
+          3
         } else {
           // unsigned 32
           out.writeByteAndInt(F_UINT32, d)
+          5
         }
       }
     }
+
+    private def packLong(d:Long) : Int = {
+      if (d < -(1L << 5)) {
+        if (d < -(1L << 15)) {
+          if(d < -(1L << 31)) {
+            // signed 64
+            out.writeByteAndLong(F_INT64, d)
+            9
+          }
+          else {
+            // signed 32
+            out.writeByteAndInt(F_INT32, d.toInt)
+            5
+          }
+        } else if (d < -(1 << 7)) {
+          // signed 16
+          out.writeByteAndShort(F_INT16, d.toShort)
+          3
+        } else {
+          // signed 8
+          out.writeByteAndByte(F_INT8, d.toByte)
+          2
+        }
+      } else if (d < (1L << 7)) {
+        // fixnum
+        out.writeByte(d.toByte)
+        1
+      } else {
+        if (d < (1L << 8)) {
+          // unsigned 8
+          out.writeByteAndByte(F_UINT8, d.toByte)
+          2
+        } else if (d < (1L << 16)) {
+          // unsigned 16
+          out.writeByteAndShort(F_UINT16, d.toShort)
+          3
+        } else if (d < (1L << 32)) {
+          // unsigned 32
+          out.writeByteAndInt(F_UINT32, d.toInt)
+          5
+        }
+        else {
+          // unsigned 64
+          out.writeByteAndLong(F_UINT64, d)
+          9
+        }
+      }
+
+    }
+
+    private def packString(s:String) = {
+      val bytes = s.getBytes("UTF-8")
+      val len = bytes.length
+      if(len < (1 << 8))
+        out.writeByte(F_STR8)
+      else if(len < (1 << 16))
+        out.writeByte(F_STR16)
+      else
+        out.writeByte(F_STR32)
+      out.write(bytes, 0, len)
+      1 + len
+    }
+
 
 
     def beginEntry(picklee: Any) = withHints { hints =>
@@ -75,7 +150,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
       if(picklee == null)
         byteBuffer.writeByte(F_NULL)
       else if (hints.oid != -1) {
-        // Has object ID
+        // Has an object ID
         val oid = hints.oid
         // TODO Integer compaction
         byteBuffer.writeByte(F_FIXEXT4)
@@ -89,7 +164,31 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
           byteBuffer.write(tpeBytes)
         }
 
-
+        pos = hints.tag.key match {
+          case KEY_NULL =>
+            byteBuffer.writeByte(F_NULL)
+            pos + 1
+          case KEY_BYTE =>
+            byteBuffer.writeByte(picklee.asInstanceOf[Byte])
+            pos + 1
+          case KEY_SHORT =>
+            byteBuffer.writeShort(picklee.asInstanceOf[Short])
+            pos + 2
+          case KEY_CHAR =>
+            byteBuffer.writeChar(picklee.asInstanceOf[Char])
+            pos + 2
+          case KEY_INT =>
+            pos + packInt(picklee.asInstanceOf[Int])
+          case KEY_LONG =>
+            pos + packLong(picklee.asInstanceOf[Long])
+          case KEY_DOUBLE =>
+            byteBuffer.writeDouble(picklee.asInstanceOf[Double])
+            pos + 4
+          case KEY_SCALA_STRING | KEY_JAVA_STRING =>
+            packString(picklee.asInstanceOf[String])
+            
+          //case F_
+        }
       }
 
       this
@@ -157,8 +256,23 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
   class MsgPackPickleFormat extends PickleFormat {
 
+    val KEY_NULL    = FastTypeTag.Null.key
+    val KEY_BYTE    = FastTypeTag.Byte.key
+    val KEY_SHORT   = FastTypeTag.Short.key
+    val KEY_CHAR    = FastTypeTag.Char.key
+    val KEY_INT     = FastTypeTag.Int.key
+    val KEY_LONG    = FastTypeTag.Long.key
+    val KEY_BOOLEAN = FastTypeTag.Boolean.key
+    val KEY_FLOAT   = FastTypeTag.Float.key
+    val KEY_DOUBLE  = FastTypeTag.Double.key
+    val KEY_UNIT    = FastTypeTag.Unit.key
+
+    val KEY_SCALA_STRING = FastTypeTag.ScalaString.key
+    val KEY_JAVA_STRING  = FastTypeTag.JavaString.key
+
+
     val F_NULL : Byte = 0xC0.toByte
-    val F_OBJREF : Byte = 0.toByte
+    val F_OBJREF : Byte = 1.toByte
 
     val F_UINT8 : Byte = 0xCC.toByte
     val F_UINT16 : Byte = 0xCD.toByte
@@ -180,6 +294,10 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     val F_ARRAY_PREFIX : Byte = 0x90.toByte
     val F_ARRAY16 : Byte = 0xDC.toByte
     val F_ARRAY32 : Byte = 0xDD.toByte
+
+    val F_STR8 : Byte = 0xD9.toByte
+    val F_STR16 : Byte = 0xDA.toByte
+    val F_STR32 : Byte = 0xDB.toByte
 
     type PickleType = MsgPackPickle
     type OutputType = MsgPackWriter
