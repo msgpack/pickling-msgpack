@@ -14,9 +14,8 @@ package object msgpack {
 
 package msgpack {
 
-import scala.pickling.binary.{ByteArrayBuffer, ByteArray, BinaryPickleFormat}
-import scala.collection.mutable.ArrayBuffer
-import java.nio.ByteBuffer
+  import scala.pickling.binary.{ByteArrayBuffer, ByteArray, BinaryPickleFormat}
+import xerial.core.log.Logger
 
 case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     type ValueType = Array[Byte]
@@ -28,7 +27,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
 
 
-  class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:MsgPackWriter) extends PBuilder with PickleTools {
+  class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:MsgPackWriter) extends PBuilder with PickleTools with Logger {
     import format._
 
     private var byteBuffer: MsgPackWriter = out
@@ -142,6 +141,31 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
       1 + len
     }
 
+    private def packByteArray(b:Array[Byte]) = {
+      val len = b.length
+      val wroteBytes =
+        if(len < 15) {
+          out.writeByte((F_ARRAY_PREFIX | len).toByte)
+          1
+        }
+        else if(len < (1 << 16)) {
+          out.writeByte(F_ARRAY16)
+          out.writeByte(((len >>> 8) & 0xFF).toByte)
+          out.writeByte((len & 0xFF).toByte)
+          3
+        }
+        else {
+          out.writeByte(F_ARRAY32)
+          out.writeByte(((len >>> 24) & 0xFF).toByte)
+          out.writeByte(((len >>> 16) & 0xFF).toByte)
+          out.writeByte(((len >>> 8) & 0xFF).toByte)
+          out.writeByte((len & 0xFF).toByte)
+          5
+        }
+      out.write(b, 0, len)
+      wroteBytes + len
+    }
+
 
 
     def beginEntry(picklee: Any) = withHints { hints =>
@@ -170,23 +194,27 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
             pos + 1
           case KEY_BYTE =>
             byteBuffer.writeByte(picklee.asInstanceOf[Byte])
-            pos + 1
+            pos + 2
           case KEY_SHORT =>
             byteBuffer.writeShort(picklee.asInstanceOf[Short])
-            pos + 2
+            pos + 3
           case KEY_CHAR =>
             byteBuffer.writeChar(picklee.asInstanceOf[Char])
-            pos + 2
+            pos + 3
           case KEY_INT =>
             pos + packInt(picklee.asInstanceOf[Int])
+          case KEY_FLOAT =>
+            byteBuffer.writeFloat(picklee.asInstanceOf[Float])
+            pos + 5
           case KEY_LONG =>
             pos + packLong(picklee.asInstanceOf[Long])
           case KEY_DOUBLE =>
             byteBuffer.writeDouble(picklee.asInstanceOf[Double])
-            pos + 4
+            pos + 9
           case KEY_SCALA_STRING | KEY_JAVA_STRING =>
-            packString(picklee.asInstanceOf[String])
-            
+            pos + packString(picklee.asInstanceOf[String])
+          case KEY_ARRAY_BYTE =>
+            pos + packByteArray(picklee.asInstanceOf[Array[Byte]])
           //case F_
         }
       }
@@ -270,6 +298,16 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     val KEY_SCALA_STRING = FastTypeTag.ScalaString.key
     val KEY_JAVA_STRING  = FastTypeTag.JavaString.key
 
+    val KEY_ARRAY_BYTE    = FastTypeTag.ArrayByte.key
+    val KEY_ARRAY_SHORT   = FastTypeTag.ArrayShort.key
+    val KEY_ARRAY_CHAR    = FastTypeTag.ArrayChar.key
+    val KEY_ARRAY_INT     = FastTypeTag.ArrayInt.key
+    val KEY_ARRAY_LONG    = FastTypeTag.ArrayLong.key
+    val KEY_ARRAY_BOOLEAN = FastTypeTag.ArrayBoolean.key
+    val KEY_ARRAY_FLOAT   = FastTypeTag.ArrayFloat.key
+    val KEY_ARRAY_DOUBLE  = FastTypeTag.ArrayDouble.key
+
+    val KEY_REF = FastTypeTag.Ref.key
 
     val F_NULL : Byte = 0xC0.toByte
     val F_OBJREF : Byte = 1.toByte
@@ -304,9 +342,8 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def createReader(pickle: PickleType, mirror: Mirror) = new MsgPackPickleReader(pickle.value, mirror, this)
 
-    def createBuilder() : PBuilder = new MsgPackPickleBuilder(this, null)
-
-    def createBuilder(out: MsgPackPickleFormat#OutputType) = new MsgPackPickleBuilder(this, out)
+    def createBuilder() = new MsgPackPickleBuilder(this, null)
+    def createBuilder(out: MsgPackWriter) = new MsgPackPickleBuilder(this, out)
   }
 
 

@@ -22,6 +22,8 @@ import scala.pickling._
  */
 class PicklingTest extends PicklingSpec {
 
+  def toHEX(b:Array[Byte]) = b.map(c => f"$c%x").mkString
+
   "Pickling" should {
 
     "serialize objects in JSON format" in {
@@ -47,7 +49,7 @@ class PicklingTest extends PicklingSpec {
 
       val pckl = p.pickle
 
-      def toHEX(b:Array[Byte]) = b.map(c => f"$c%x").mkString
+
 
       debug(toHEX(pckl.value))
       val pp = pckl.unpickle[Person]
@@ -59,8 +61,12 @@ class PicklingTest extends PicklingSpec {
 
     "serialize objects in msgpack format" in {
 
-      pending
+      import msgpack._
 
+      val p = Person(1, "leo")
+      val pckl = p.pickle
+
+      debug(pckl)
     }
 
 

@@ -73,7 +73,7 @@ class MsgPackOutputArray(size:Int) extends MsgPackWriter {
   def writeDouble(v: Double) = arr.putDouble(v)
 
   def write(b: Array[Byte], off: Int, len: Int) = {
-    arr.put(b, off, len)
+    arr.put(b, ogff, len)
   }
 
   def write(bb: ByteBuffer) = {
