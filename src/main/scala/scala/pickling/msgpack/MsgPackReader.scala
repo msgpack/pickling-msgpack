@@ -1,0 +1,73 @@
+//--------------------------------------
+//
+// MsgPackReader.scala
+// Since: 2014/02/10 14:59
+//
+//--------------------------------------
+
+package scala.pickling.msgpack
+
+/**
+ * @author Taro L. Saito
+ */
+trait MsgPackReader {
+  def readByte : Byte
+  def decodeInt : Int
+}
+
+
+class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader {
+  import MsgPackCode._
+
+  private var pos = 0
+
+  def readByte : Byte = {
+    val v = arr(pos)
+    pos += 1
+    v
+  }
+
+  def decodeInt : Int = {
+    val prefix = arr(pos)
+    import scala.pickling.msgpack.MsgPackPickleFormat
+    prefix match {
+      case F_UINT8 =>
+        val v = arr(pos + 1).toInt
+        pos += 2
+        v
+      case F_UINT16 =>
+        val v = (((arr(pos + 1) & 0xFF) << 8) | (arr(pos+2) & 0xFF)).toInt
+        pos += 3
+        v
+      case F_UINT32 =>
+        val v =
+          (((arr(pos+1) & 0xFF) << 24)
+            | ((arr(pos+2) & 0xFF) << 16)
+            | ((arr(pos+3) & 0xFF) << 8)
+            | (arr(pos+4) & 0xFF)).toInt
+        pos += 5
+        v
+      case F_UINT64 =>
+        val v =
+          (((arr(pos+1) & 0xFF) << 54)
+            | ((arr(pos+2) & 0xFF) << 48)
+            | ((arr(pos+3) & 0xFF) << 40)
+            | ((arr(pos+4) & 0xFF) << 32)
+            | ((arr(pos+5) & 0xFF) << 24)
+            | ((arr(pos+6) & 0xFF) << 16)
+            | ((arr(pos+7) & 0xFF) << 8)
+            | (arr(pos+8) & 0xFF)).toInt
+        pos += 9
+        v
+      case F_INT8 =>
+      case F_INT16 =>
+      case F_INT32 =>
+      case F_INT64 =>
+      case _ =>
+        throw new IllegalStateException("not an integer")
+    }
+
+  }
+
+
+}

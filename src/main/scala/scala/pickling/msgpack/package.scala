@@ -19,7 +19,7 @@ package msgpack {
 
   case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     type ValueType = Array[Byte]
-    type PickleFormatType = BinaryPickleFormat
+    type PickleFormatType = MsgPackPickleFormat
 
     private def toHEX(b:Array[Byte]) = b.map(x => f"$x%x").mkString
     override def toString = s"""MsgPackPickle(${toHEX(value)})"""
@@ -28,6 +28,7 @@ package msgpack {
 
   class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:MsgPackWriter) extends PBuilder with PickleTools with Logger {
     import format._
+    import MsgPackCode._
 
     private var byteBuffer: MsgPackWriter = out
 
@@ -274,27 +275,90 @@ package msgpack {
 
 
   class MsgPackPickleReader(arr:Array[Byte], val mirror:Mirror, format: MsgPackPickleFormat) extends PReader with PickleTools {
-    def beginEntry() = ???
+    import format._
+
+    private val in = new MsgPackByteArrayReader(arr)
+    private var pos                          = 0
+    private var _lastTagRead: FastTypeTag[_] = null
+    private var _lastTypeStringRead: String  = null
+
+    private def lastTagRead: FastTypeTag[_] =
+      if (_lastTagRead != null)
+        _lastTagRead
+      else {
+        // assume _lastTypeStringRead != null
+        _lastTagRead = FastTypeTag(mirror, _lastTypeStringRead)
+        _lastTagRead
+      }
+
+    def beginEntry() : FastTypeTag[_] = {
+      beginEntryNoTag()
+      lastTagRead
+    }
 
     def beginEntryNoTag() = ???
 
-    def atPrimitive = ???
 
-    def readPrimitive() = ???
+    def atPrimitive = primitives.contains(lastTagRead.key)
 
-    def atObject = ???
+    def readPrimitive() : Any = {
+      var newpos = pos
+      val res = lastTagRead.key match {
+        case KEY_NULL => null
+        case KEY_REF =>  null // TODO
+        case KEY_BYTE =>
+          newpos = pos + 1
+          in.readByte
 
-    def readField(name: String) = ???
+      }
+      res
+    }
 
-    def endEntry() = ???
+    def atObject = !atPrimitive
 
-    def beginCollection() = ???
+    def readField(name: String) : MsgPackPickleReader = this
 
-    def readLength() = ???
+    def endEntry() : Unit = { /* do nothing */ }
 
-    def readElement() = ???
+    def beginCollection() : PReader = this
 
-    def endCollection() = ???
+    def readLength() : Int = {
+      in.decodeInt
+    }
+
+    def readElement() : PReader = this
+
+    def endCollection() : Unit = { /* do nothing */ }
+  }
+
+  object MsgPackCode {
+    val F_NULL : Byte = 0xC0.toByte
+    val F_OBJREF : Byte = 1.toByte
+
+    val F_UINT8 : Byte = 0xCC.toByte
+    val F_UINT16 : Byte = 0xCD.toByte
+    val F_UINT32 : Byte = 0xCE.toByte
+    val F_UINT64 : Byte = 0xCF.toByte
+
+    val F_INT8 : Byte = 0xD0.toByte
+    val F_INT16 : Byte = 0xD1.toByte
+    val F_INT32 : Byte = 0xD2.toByte
+    val F_INT64 : Byte = 0xD3.toByte
+
+
+    val F_FIXEXT1 : Byte = 0xD4.toByte
+    val F_FIXEXT2 : Byte = 0xD5.toByte
+    val F_FIXEXT4 : Byte = 0xD6.toByte
+    val F_FIXEXT8 : Byte = 0xD7.toByte
+    val F_FIXEXT16 : Byte = 0xD8.toByte
+
+    val F_ARRAY_PREFIX : Byte = 0x90.toByte
+    val F_ARRAY16 : Byte = 0xDC.toByte
+    val F_ARRAY32 : Byte = 0xDD.toByte
+
+    val F_STR8 : Byte = 0xD9.toByte
+    val F_STR16 : Byte = 0xDA.toByte
+    val F_STR32 : Byte = 0xDB.toByte
   }
 
   class MsgPackPickleFormat extends PickleFormat {
@@ -324,33 +388,8 @@ package msgpack {
 
     val KEY_REF = FastTypeTag.Ref.key
 
-    val F_NULL : Byte = 0xC0.toByte
-    val F_OBJREF : Byte = 1.toByte
 
-    val F_UINT8 : Byte = 0xCC.toByte
-    val F_UINT16 : Byte = 0xCD.toByte
-    val F_UINT32 : Byte = 0xCE.toByte
-    val F_UINT64 : Byte = 0xCF.toByte
-    
-    val F_INT8 : Byte = 0xD0.toByte
-    val F_INT16 : Byte = 0xD1.toByte
-    val F_INT32 : Byte = 0xD2.toByte
-    val F_INT64 : Byte = 0xD3.toByte
-
-
-    val F_FIXEXT1 : Byte = 0xD4.toByte
-    val F_FIXEXT2 : Byte = 0xD5.toByte
-    val F_FIXEXT4 : Byte = 0xD6.toByte
-    val F_FIXEXT8 : Byte = 0xD7.toByte
-    val F_FIXEXT16 : Byte = 0xD8.toByte
-
-    val F_ARRAY_PREFIX : Byte = 0x90.toByte
-    val F_ARRAY16 : Byte = 0xDC.toByte
-    val F_ARRAY32 : Byte = 0xDD.toByte
-
-    val F_STR8 : Byte = 0xD9.toByte
-    val F_STR16 : Byte = 0xDA.toByte
-    val F_STR32 : Byte = 0xDB.toByte
+    val primitives = Set(KEY_NULL, KEY_REF, KEY_BYTE, KEY_SHORT, KEY_CHAR, KEY_INT, KEY_LONG, KEY_BOOLEAN, KEY_FLOAT, KEY_DOUBLE, KEY_UNIT, KEY_SCALA_STRING, KEY_JAVA_STRING, KEY_ARRAY_BYTE, KEY_ARRAY_SHORT, KEY_ARRAY_CHAR, KEY_ARRAY_INT, KEY_ARRAY_LONG, KEY_ARRAY_BOOLEAN, KEY_ARRAY_FLOAT, KEY_ARRAY_DOUBLE)
 
     type PickleType = MsgPackPickle
     type OutputType = MsgPackWriter

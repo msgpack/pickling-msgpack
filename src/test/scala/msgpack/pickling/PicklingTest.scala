@@ -67,6 +67,10 @@ class PicklingTest extends PicklingSpec {
       val pckl = p.pickle
 
       debug(pckl)
+
+      val pp = pckl.unpickle[Person]
+      debug(pp)
+
     }
 
 
