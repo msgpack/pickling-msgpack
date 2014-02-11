@@ -296,7 +296,9 @@ package msgpack {
       lastTagRead
     }
 
-    def beginEntryNoTag() = ???
+    def beginEntryNoTag() : String = {
+      ""
+    }
 
 
     def atPrimitive = primitives.contains(lastTagRead.key)
@@ -323,7 +325,8 @@ package msgpack {
     def beginCollection() : PReader = this
 
     def readLength() : Int = {
-      in.decodeInt
+      val len = in.decodeInt
+      len
     }
 
     def readElement() : PReader = this

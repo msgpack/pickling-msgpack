@@ -48,21 +48,48 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader {
         pos += 5
         v
       case F_UINT64 =>
-        val v =
-          (((arr(pos+1) & 0xFF) << 54)
-            | ((arr(pos+2) & 0xFF) << 48)
-            | ((arr(pos+3) & 0xFF) << 40)
-            | ((arr(pos+4) & 0xFF) << 32)
-            | ((arr(pos+5) & 0xFF) << 24)
-            | ((arr(pos+6) & 0xFF) << 16)
-            | ((arr(pos+7) & 0xFF) << 8)
-            | (arr(pos+8) & 0xFF)).toInt
-        pos += 9
-        v
+        throw new IllegalStateException("Cannot decode UINT64")
+//        val v =
+//          (((arr(pos+1) & 0xFF) << 54)
+//            | ((arr(pos+2) & 0xFF) << 48)
+//            | ((arr(pos+3) & 0xFF) << 40)
+//            | ((arr(pos+4) & 0xFF) << 32)
+//            | ((arr(pos+5) & 0xFF) << 24)
+//            | ((arr(pos+6) & 0xFF) << 16)
+//            | ((arr(pos+7) & 0xFF) << 8)
+//            | (arr(pos+8) & 0xFF)).toInt
+//        pos += 9
+//        v
       case F_INT8 =>
+        val v = arr(pos + 1)
+        pos += 2
+        if(v < 0) v & (~0 << 8) else v
       case F_INT16 =>
+        val p = arr(pos+1)
+        val v = (((arr(pos + 1) & 0xFF) << 8) | (arr(pos+2) & 0xFF)).toInt
+        pos += 3
+        if(p < 0) v & (~0 << 16) else v
       case F_INT32 =>
+        val v =
+          (((arr(pos+1) & 0xFF) << 24)
+            | ((arr(pos+2) & 0xFF) << 16)
+            | ((arr(pos+3) & 0xFF) << 8)
+            | (arr(pos+4) & 0xFF)).toInt
+        pos += 5
+        v
       case F_INT64 =>
+        throw new IllegalStateException("Cannot decode INT64")
+//        val v =
+//          (((arr(pos+1) & 0xFF) << 54)
+//            | ((arr(pos+2) & 0xFF) << 48)
+//            | ((arr(pos+3) & 0xFF) << 40)
+//            | ((arr(pos+4) & 0xFF) << 32)
+//            | ((arr(pos+5) & 0xFF) << 24)
+//            | ((arr(pos+6) & 0xFF) << 16)
+//            | ((arr(pos+7) & 0xFF) << 8)
+//            | (arr(pos+8) & 0xFF)).toInt
+//        pos += 9
+//        v
       case _ =>
         throw new IllegalStateException("not an integer")
     }
