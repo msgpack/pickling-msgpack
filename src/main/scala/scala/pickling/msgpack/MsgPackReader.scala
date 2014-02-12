@@ -12,6 +12,8 @@ package scala.pickling.msgpack
  */
 trait MsgPackReader {
   def readByte : Byte
+  def lookahead : Byte
+  def lookahead(k:Int) : Byte
   def decodeInt : Int
 }
 
@@ -26,6 +28,9 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader {
     pos += 1
     v
   }
+
+  def lookahead = lookahead(0)
+  def lookahead(k:Int) = arr(pos+k)
 
   def decodeInt : Int = {
     val prefix = arr(pos)

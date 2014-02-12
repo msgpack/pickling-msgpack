@@ -183,7 +183,7 @@ package msgpack {
         val oid = hints.oid
         // TODO Integer compaction
         byteBuffer.writeByte(F_FIXEXT4)
-        byteBuffer.writeByte(F_OBJREF)
+        byteBuffer.writeByte(F_EXT_OBJREF)
         byteBuffer.writeInt(hints.oid)
       } else {
         if(!hints.isElidedType) {
@@ -223,7 +223,9 @@ package msgpack {
             pos + packByteArray(picklee.asInstanceOf[Array[Byte]])
           case _ =>
             if(hints.isElidedType) {
-              warn(s"TODO: elided type")
+              byteBuffer.writeByte(F_FIXEXT1)
+              byteBuffer.writeByte(F_EXT_ELIDED_TAG)
+              byteBuffer.writeByte(0) //
               pos
             }
             else
@@ -276,9 +278,10 @@ package msgpack {
 
   class MsgPackPickleReader(arr:Array[Byte], val mirror:Mirror, format: MsgPackPickleFormat) extends PReader with PickleTools {
     import format._
+    import MsgPackCode._
 
     private val in = new MsgPackByteArrayReader(arr)
-    private var pos                          = 0
+    private var pos = 0
     private var _lastTagRead: FastTypeTag[_] = null
     private var _lastTypeStringRead: String  = null
 
@@ -297,6 +300,57 @@ package msgpack {
     }
 
     def beginEntryNoTag() : String = {
+      val res : Any = withHints { hints =>
+        if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
+          val la1 = in.lookahead
+          la1 match {
+            case KEY_NULL =>
+              in.readByte
+              FastTypeTag.Null
+            case F_FIXEXT4 =>
+              in.lookahead(1) match {
+                case F_EXT_OBJREF =>
+                  in.readByte
+                  in.readByte
+                  FastTypeTag.Ref
+                case _ => hints.tag
+              }
+            case _ => hints.tag
+          }
+        }
+        else if(hints.isElidedType && primitives.contains(hints.tag.key)) {
+          hints.tag
+        }
+        else {
+          val la1 = in.lookahead
+          la1 match {
+            case KEY_NULL =>
+              in.readByte
+              FastTypeTag.Null
+            case F_FIXEXT1 =>
+              in.lookahead(1) match {
+                case F_EXT_ELIDED_TAG =>
+                  in.readByte; in.readByte
+                  FastTypeTag.Ref
+                case _ =>
+                  // TODO
+                  ""
+              }
+            case F_FIXEXT4 =>
+              in.lookahead(1) match {
+                case F_EXT_OBJREF =>
+
+              }
+
+          }
+
+
+        }
+
+
+
+      }
+
       ""
     }
 
@@ -336,7 +390,8 @@ package msgpack {
 
   object MsgPackCode {
     val F_NULL : Byte = 0xC0.toByte
-    val F_OBJREF : Byte = 1.toByte
+    val F_EXT_OBJREF : Byte = 1.toByte
+    val F_EXT_ELIDED_TAG : Byte = 2.toByte
 
     val F_UINT8 : Byte = 0xCC.toByte
     val F_UINT16 : Byte = 0xCD.toByte
@@ -393,6 +448,7 @@ package msgpack {
 
 
     val primitives = Set(KEY_NULL, KEY_REF, KEY_BYTE, KEY_SHORT, KEY_CHAR, KEY_INT, KEY_LONG, KEY_BOOLEAN, KEY_FLOAT, KEY_DOUBLE, KEY_UNIT, KEY_SCALA_STRING, KEY_JAVA_STRING, KEY_ARRAY_BYTE, KEY_ARRAY_SHORT, KEY_ARRAY_CHAR, KEY_ARRAY_INT, KEY_ARRAY_LONG, KEY_ARRAY_BOOLEAN, KEY_ARRAY_FLOAT, KEY_ARRAY_DOUBLE)
+    val nullablePrimitives = Set(KEY_NULL, KEY_SCALA_STRING, KEY_JAVA_STRING, KEY_ARRAY_BYTE, KEY_ARRAY_SHORT, KEY_ARRAY_CHAR, KEY_ARRAY_INT, KEY_ARRAY_LONG, KEY_ARRAY_BOOLEAN, KEY_ARRAY_FLOAT, KEY_ARRAY_DOUBLE)
 
     type PickleType = MsgPackPickle
     type OutputType = MsgPackWriter
