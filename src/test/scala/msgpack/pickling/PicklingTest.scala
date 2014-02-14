@@ -16,6 +16,7 @@ object PicklingTest {
 import PicklingTest._
 import scala.pickling._
 import scala.reflect.ClassTag
+import org.scalatest.Tag
 
 
 /**
@@ -77,11 +78,12 @@ class PicklingTest extends PicklingSpec {
 
 
 
-    "serialize various types in msgpack format" in {
-
+    "serialize primitive types in msgpack format" taggedAs(Tag("primitive")) in {
       import msgpack._
       def check(v:Any) {
+        debug(s"pickling $v")
         val encoded = v.pickle
+        debug(s"unpickling $encoded")
         val decoded : Any = encoded.unpickle[Any]
         decoded shouldBe (v)
       }
@@ -90,6 +92,14 @@ class PicklingTest extends PicklingSpec {
       check("hello world")
       check(true)
       check(false)
+
+      check(1.34f)
+      check(0.14434)
+      check('h'.toChar)
+
+      check(34.toByte)
+
+      // check(null)
     }
 
 

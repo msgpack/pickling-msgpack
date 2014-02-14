@@ -226,19 +226,33 @@ package msgpack {
           case KEY_BOOLEAN =>
             byteBuffer.writeByte(if(picklee.asInstanceOf[Boolean]) F_TRUE else F_FALSE)
           case KEY_BYTE =>
-            byteBuffer.writeByte(picklee.asInstanceOf[Byte])
+            packInt(picklee.asInstanceOf[Byte])
           case KEY_SHORT =>
             byteBuffer.writeShort(picklee.asInstanceOf[Short])
           case KEY_CHAR =>
-            byteBuffer.writeChar(picklee.asInstanceOf[Char])
+            packInt(picklee.asInstanceOf[Char])
           case KEY_INT =>
             packInt(picklee.asInstanceOf[Int])
           case KEY_FLOAT =>
-            byteBuffer.writeFloat(picklee.asInstanceOf[Float])
+            byteBuffer.writeByte(F_FLOAT32)
+            val l = java.lang.Float.floatToIntBits(picklee.asInstanceOf[Float])
+            byteBuffer.writeByte(((l >>> 24) & 0xFF).toByte)
+            byteBuffer.writeByte(((l >>> 16) & 0xFF).toByte)
+            byteBuffer.writeByte(((l >>> 8) & 0xFF).toByte)
+            byteBuffer.writeByte((l & 0xFF).toByte)
+          case KEY_DOUBLE =>
+            byteBuffer.writeByte(F_FLOAT64)
+            val l = java.lang.Double.doubleToLongBits(picklee.asInstanceOf[Double])
+            byteBuffer.writeByte(((l >>> 56) & 0xFF).toByte)
+            byteBuffer.writeByte(((l >>> 48) & 0xFF).toByte)
+            byteBuffer.writeByte(((l >>> 40) & 0xFF).toByte)
+            byteBuffer.writeByte(((l >>> 32) & 0xFF).toByte)
+            byteBuffer.writeByte(((l >>> 24) & 0xFF).toByte)
+            byteBuffer.writeByte(((l >>> 16) & 0xFF).toByte)
+            byteBuffer.writeByte(((l >>> 8) & 0xFF).toByte)
+            byteBuffer.writeByte((l & 0xFF).toByte)
           case KEY_LONG =>
             packLong(picklee.asInstanceOf[Long])
-          case KEY_DOUBLE =>
-            byteBuffer.writeDouble(picklee.asInstanceOf[Double])
           case KEY_SCALA_STRING | KEY_JAVA_STRING =>
             packString(picklee.asInstanceOf[String])
           case KEY_ARRAY_BYTE =>
@@ -394,19 +408,23 @@ package msgpack {
     def atPrimitive = primitives.contains(lastTagRead.key)
 
     def readPrimitive() : Any = {
-      var newpos = pos
       val res = lastTagRead.key match {
         case KEY_NULL => null
         case KEY_REF =>  null // TODO
         case KEY_BYTE =>
-          newpos = pos + 1
-          in.readByte
+          in.decodeInt
         case KEY_INT =>
           in.decodeInt
         case KEY_SCALA_STRING | KEY_JAVA_STRING =>
           in.decodeString
         case KEY_BOOLEAN =>
           in.decodeBoolean
+        case KEY_FLOAT =>
+          in.decodeFloat
+        case KEY_DOUBLE =>
+          in.decodeDouble
+        case KEY_CHAR =>
+          in.decodeInt.toChar
       }
       res
     }
@@ -430,17 +448,30 @@ package msgpack {
   }
 
   object MsgPackCode {
-    val F_NULL : Byte = 0xC0.toByte
+
     val F_EXT_OBJREF : Byte = 1.toByte
     val F_EXT_ELIDED_TAG : Byte = 2.toByte
     val F_EXT_TYPE_NAME : Byte = 3.toByte
 
+    val F_FIXMAP_PREFIX = 0x80.toByte // 1000xxxx
+    val F_ARRAY_PREFIX : Byte = 0x90.toByte // 1001xxxx
+    val F_FIXSTR_PREFIX : Byte = 0xA0.toByte // 101xxxxx
+
+    val F_NULL : Byte = 0xC0.toByte
+    val F_NEVERUSED : Byte = 0xC1.toByte
     val F_FALSE = 0xC2.toByte
     val F_TRUE = 0xC3.toByte
+
+    val F_BIN8 = 0xC4.toByte
+    val F_BIN16 = 0xC5.toByte
+    val F_BIN32 = 0xC6.toByte
 
     val F_EXT8 = 0xC7.toByte
     val F_EXT16 = 0xC8.toByte
     val F_EXT32 = 0xC9.toByte
+
+    val F_FLOAT32 : Byte = 0xCA.toByte
+    val F_FLOAT64 : Byte = 0xCB.toByte
 
     val F_UINT8 : Byte = 0xCC.toByte
     val F_UINT16 : Byte = 0xCD.toByte
@@ -458,14 +489,16 @@ package msgpack {
     val F_FIXEXT8 : Byte = 0xD7.toByte
     val F_FIXEXT16 : Byte = 0xD8.toByte
 
-    val F_ARRAY_PREFIX : Byte = 0x90.toByte
-    val F_ARRAY16 : Byte = 0xDC.toByte
-    val F_ARRAY32 : Byte = 0xDD.toByte
-
-    val F_FIXSTR_PREFIX : Byte = 0xA0.toByte
     val F_STR8 : Byte = 0xD9.toByte
     val F_STR16 : Byte = 0xDA.toByte
     val F_STR32 : Byte = 0xDB.toByte
+
+    val F_ARRAY16 : Byte = 0xDC.toByte
+    val F_ARRAY32 : Byte = 0xDD.toByte
+    val F_MAP16 : Byte = 0xDE.toByte
+    val F_MAP32 : Byte = 0xDF.toByte
+
+    val F_NEG_FIXINT_PREFIX : Byte = 0xE0.toByte
   }
 
   class MsgPackPickleFormat extends PickleFormat {

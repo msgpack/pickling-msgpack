@@ -41,6 +41,42 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader {
   def lookahead = lookahead(0)
   def lookahead(k:Int) = arr(pos+k)
 
+  private def invalidCode(c:Byte, message:String) : Nothing = {
+    throw new IllegalStateException(f"[$c%02x] $message")
+  }
+
+  def decodeFloat : Float = {
+    val c = arr(pos)
+    pos += 1
+    if(c != F_FLOAT32)
+      invalidCode(c, "not a float")
+    val v = java.lang.Float.intBitsToFloat(
+      ((arr(pos) & 0xFF) << 24) |
+        ((arr(pos+1) & 0xFF) << 16) |
+        ((arr(pos+2) & 0xFF) << 8) |
+        (arr(pos+3) & 0xFF))
+    pos += 4
+    v
+  }
+
+  def decodeDouble : Double = {
+    val c = arr(pos)
+    pos += 1
+    if(c != F_FLOAT64)
+      invalidCode(c, "not a double")
+    val v = java.lang.Double.longBitsToDouble(
+      (((arr(pos) & 0xFF).toLong << 56) |
+        ((arr(pos+1) & 0xFF).toLong << 48) |
+        ((arr(pos+2) & 0xFF).toLong << 40) |
+        ((arr(pos+3) & 0xFF).toLong << 32) |
+        ((arr(pos+4) & 0xFF).toLong << 24) |
+        ((arr(pos+5) & 0xFF).toLong << 16) |
+        ((arr(pos+6) & 0xFF).toLong << 8) |
+        (arr(pos+7).toLong & 0xFF)))
+    pos += 8
+    v
+  }
+
   def decodeBoolean : Boolean = {
     val c = arr(pos)
     pos += 1
