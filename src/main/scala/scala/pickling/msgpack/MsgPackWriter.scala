@@ -10,6 +10,7 @@ package scala.pickling.msgpack
 import scala.pickling.Output
 import java.nio.ByteBuffer
 import scala.collection.mutable.ArrayBuffer
+import xerial.core.log.Logger
 
 
 abstract class MsgPackWriter extends Output[Array[Byte]] {
@@ -81,7 +82,7 @@ class MsgPackOutputArray(size:Int) extends MsgPackWriter {
   }
 }
 
-class MsgPackOutputBuffer() extends MsgPackWriter {
+class MsgPackOutputBuffer() extends MsgPackWriter with Logger {
   private var buffer : Array[Byte] = null
   private var capacity = 0
   private var size = 0
@@ -98,6 +99,7 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
     buffer = makeBuffer(size)
     capacity = size
     wrap = ByteBuffer.wrap(buffer)
+    wrap.position(this.size)
   }
 
   private def ensureSize(size:Int) {
@@ -154,43 +156,45 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
   }
 
   def writeByte(v: Byte) = {
+    debug(f"write: $v%02x")
     ensureSize(size + 1)
-    wrap.put(size, v)
+    wrap.put(v)
     size += 1
   }
 
   def writeShort(v: Short) = {
     ensureSize(size + 2)
-    wrap.putShort(size, v)
+    wrap.putShort(v)
     size += 2
   }
 
   def writeInt(v: Int) = {
+    debug(f"write int: $v")
     ensureSize(size + 4)
-    wrap.putInt(size, v)
+    wrap.putInt(v)
     size += 4
   }
   def writeChar(v:Char) = {
     ensureSize(size + 2)
-    wrap.putChar(size, v)
+    wrap.putChar(v)
     size += 2
   }
 
   def writeLong(v: Long) = {
     ensureSize(size + 8)
-    wrap.putLong(size, v)
+    wrap.putLong(v)
     size += 8
   }
 
   def writeFloat(v: Float) = {
     ensureSize(size + 4)
-    wrap.putFloat(size, v)
+    wrap.putFloat(v)
     size += 4
   }
 
   def writeDouble(v: Double) = {
     ensureSize(size + 8)
-    wrap.putDouble(size, v)
+    wrap.putDouble(v)
     size += 8
   }
 

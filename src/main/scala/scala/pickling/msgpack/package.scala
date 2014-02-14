@@ -21,7 +21,7 @@ package msgpack {
     type ValueType = Array[Byte]
     type PickleFormatType = MsgPackPickleFormat
 
-    private def toHEX(b:Array[Byte]) = b.map(x => f"$x%x").mkString
+    private def toHEX(b:Array[Byte]) = b.map(x => f"$x%02x").mkString
     override def toString = s"""MsgPackPickle(${toHEX(value)})"""
   }
 
@@ -32,7 +32,6 @@ package msgpack {
 
     private var byteBuffer: MsgPackWriter = out
 
-    private var pos = 0
 
     private[this] def mkByteBuffer(knownSize: Int): Unit = {
       if (byteBuffer == null) {
@@ -134,12 +133,24 @@ package msgpack {
     private def packString(s:String) = {
       val bytes = s.getBytes("UTF-8")
       val len = bytes.length
-      if(len < (1 << 8))
+      if(len < (1 << 5)) {
+        byteBuffer.writeByte((F_FIXSTR_PREFIX | (len & 0x1F)).toByte)
+      } else if(len < (1 << 8)) {
         byteBuffer.writeByte(F_STR8)
-      else if(len < (1 << 16))
+        byteBuffer.writeByte((len & 0xFF).toByte)
+      }
+      else if(len < (1 << 16)) {
         byteBuffer.writeByte(F_STR16)
-      else
+        byteBuffer.writeByte(((len >> 8) & 0xFF).toByte)
+        byteBuffer.writeByte((len & 0xFF).toByte)
+      }
+      else {
         byteBuffer.writeByte(F_STR32)
+        byteBuffer.writeByte(((len >> 24) & 0xFF).toByte)
+        byteBuffer.writeByte(((len >> 16) & 0xFF).toByte)
+        byteBuffer.writeByte(((len >> 8) & 0xFF).toByte)
+        byteBuffer.writeByte((len & 0xFF).toByte)
+      }
       byteBuffer.write(bytes, 0, len)
       1 + len
     }
@@ -190,46 +201,52 @@ package msgpack {
           // Type name is present
           debug(s"encode type name: ${hints.tag.key}")
           val tpeBytes = hints.tag.key.getBytes("UTF-8")
-          packInt(tpeBytes.length)
+          tpeBytes.length match {
+            case l if l < (1 << 7) =>
+              byteBuffer.writeByte(F_EXT8)
+              byteBuffer.writeByte((l & 0xFF).toByte)
+            case l if l < (1 << 15) =>
+              byteBuffer.writeByte(F_EXT16)
+              byteBuffer.writeByte(((l >>> 8) & 0xFF).toByte)
+              byteBuffer.writeByte((l & 0xFF).toByte)
+            case l =>
+              byteBuffer.writeByte(F_EXT32)
+              byteBuffer.writeByte(((l >>> 24) & 0xFF).toByte)
+              byteBuffer.writeByte(((l >>> 16) & 0xFF).toByte)
+              byteBuffer.writeByte(((l >>> 8) & 0xFF).toByte)
+              byteBuffer.writeByte((l & 0xFF).toByte)
+          }
+          byteBuffer.writeByte(F_EXT_TYPE_NAME)
           byteBuffer.write(tpeBytes)
         }
 
-        pos = hints.tag.key match {
+        hints.tag.key match {
           case KEY_NULL =>
             byteBuffer.writeByte(F_NULL)
-            pos + 1
           case KEY_BYTE =>
             byteBuffer.writeByte(picklee.asInstanceOf[Byte])
-            pos + 2
           case KEY_SHORT =>
             byteBuffer.writeShort(picklee.asInstanceOf[Short])
-            pos + 3
           case KEY_CHAR =>
             byteBuffer.writeChar(picklee.asInstanceOf[Char])
-            pos + 3
           case KEY_INT =>
-            pos + packInt(picklee.asInstanceOf[Int])
+            packInt(picklee.asInstanceOf[Int])
           case KEY_FLOAT =>
             byteBuffer.writeFloat(picklee.asInstanceOf[Float])
-            pos + 5
           case KEY_LONG =>
-            pos + packLong(picklee.asInstanceOf[Long])
+            packLong(picklee.asInstanceOf[Long])
           case KEY_DOUBLE =>
             byteBuffer.writeDouble(picklee.asInstanceOf[Double])
-            pos + 9
           case KEY_SCALA_STRING | KEY_JAVA_STRING =>
-            pos + packString(picklee.asInstanceOf[String])
+            packString(picklee.asInstanceOf[String])
           case KEY_ARRAY_BYTE =>
-            pos + packByteArray(picklee.asInstanceOf[Array[Byte]])
+            packByteArray(picklee.asInstanceOf[Array[Byte]])
           case _ =>
             if(hints.isElidedType) {
               byteBuffer.writeByte(F_FIXEXT1)
               byteBuffer.writeByte(F_EXT_ELIDED_TAG)
-              byteBuffer.writeByte(0) //
-              pos
+              byteBuffer.writeByte(0) // dummy
             }
-            else
-              pos
         }
       }
 
@@ -276,7 +293,7 @@ package msgpack {
   }
 
 
-  class MsgPackPickleReader(arr:Array[Byte], val mirror:Mirror, format: MsgPackPickleFormat) extends PReader with PickleTools {
+  class MsgPackPickleReader(arr:Array[Byte], val mirror:Mirror, format: MsgPackPickleFormat) extends PReader with PickleTools with Logger {
     import format._
     import MsgPackCode._
 
@@ -304,7 +321,7 @@ package msgpack {
         if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
           val la1 = in.lookahead
           la1 match {
-            case KEY_NULL =>
+            case F_NULL =>
               in.readByte
               FastTypeTag.Null
             case F_FIXEXT4 =>
@@ -324,7 +341,7 @@ package msgpack {
         else {
           val la1 = in.lookahead
           la1 match {
-            case KEY_NULL =>
+            case F_NULL =>
               in.readByte
               FastTypeTag.Null
             case F_FIXEXT1 =>
@@ -341,7 +358,9 @@ package msgpack {
                 case F_EXT_OBJREF =>
 
               }
-
+            case _ =>
+              debug(f"la1: $la1%02x")
+              ""
           }
 
 
@@ -392,6 +411,11 @@ package msgpack {
     val F_NULL : Byte = 0xC0.toByte
     val F_EXT_OBJREF : Byte = 1.toByte
     val F_EXT_ELIDED_TAG : Byte = 2.toByte
+    val F_EXT_TYPE_NAME : Byte = 3.toByte
+
+    val F_EXT8 = 0xC7.toByte
+    val F_EXT16 = 0xC8.toByte
+    val F_EXT32 = 0xC9.toByte
 
     val F_UINT8 : Byte = 0xCC.toByte
     val F_UINT16 : Byte = 0xCD.toByte
@@ -403,7 +427,6 @@ package msgpack {
     val F_INT32 : Byte = 0xD2.toByte
     val F_INT64 : Byte = 0xD3.toByte
 
-
     val F_FIXEXT1 : Byte = 0xD4.toByte
     val F_FIXEXT2 : Byte = 0xD5.toByte
     val F_FIXEXT4 : Byte = 0xD6.toByte
@@ -414,6 +437,7 @@ package msgpack {
     val F_ARRAY16 : Byte = 0xDC.toByte
     val F_ARRAY32 : Byte = 0xDD.toByte
 
+    val F_FIXSTR_PREFIX : Byte = 0xA0.toByte
     val F_STR8 : Byte = 0xD9.toByte
     val F_STR16 : Byte = 0xDA.toByte
     val F_STR32 : Byte = 0xDB.toByte
