@@ -10,6 +10,8 @@ package object msgpack {
 
   implicit val msgpackFormat = new MsgPackPickleFormat
   implicit def toMsgPackPickle(value:Array[Byte]) : MsgPackPickle = MsgPackPickle(value)
+
+  private[msgpack] def toHEX(b:Array[Byte]) = b.map(x => f"$x%02x").mkString
 }
 
 package msgpack {
@@ -17,11 +19,10 @@ package msgpack {
   import scala.pickling.binary.{ByteArrayBuffer, ByteArray, BinaryPickleFormat}
   import xerial.core.log.Logger
 
+
   case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     type ValueType = Array[Byte]
     type PickleFormatType = MsgPackPickleFormat
-
-    private def toHEX(b:Array[Byte]) = b.map(x => f"$x%02x").mkString
     override def toString = s"""MsgPackPickle(${toHEX(value)})"""
   }
 
@@ -199,8 +200,8 @@ package msgpack {
       } else {
         if(!hints.isElidedType) {
           // Type name is present
-          debug(s"encode type name: ${hints.tag.key}")
           val tpeBytes = hints.tag.key.getBytes("UTF-8")
+          debug(s"encode type name: ${hints.tag.key} length:${tpeBytes.length}, ${toHEX(tpeBytes)}")
           tpeBytes.length match {
             case l if l < (1 << 7) =>
               byteBuffer.writeByte(F_EXT8)
@@ -319,6 +320,7 @@ package msgpack {
     def beginEntryNoTag() : String = {
       val res : Any = withHints { hints =>
         if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
+          debug(s"Decode elided type")
           val la1 = in.lookahead
           la1 match {
             case F_NULL =>
@@ -336,14 +338,31 @@ package msgpack {
           }
         }
         else if(hints.isElidedType && primitives.contains(hints.tag.key)) {
+          debug(s"Decode primitive type: ${hints.tag}")
           hints.tag
         }
         else {
+          debug(s"Decode obj with a type")
           val la1 = in.lookahead
+          debug(f"la1: $la1%02x")
           la1 match {
             case F_NULL =>
               in.readByte
               FastTypeTag.Null
+            case F_EXT8 =>
+              val dataSize = in.lookahead(1) & 0xFF
+              debug(s"dataSize: $dataSize")
+              in.lookahead(2) match {
+                case F_EXT_TYPE_NAME =>
+                  in.readByte
+                  in.readByte
+                  in.readByte
+                  val typeBytes = in.read(dataSize)
+                  debug(s"typeBytes: ${toHEX(typeBytes)}")
+                  val typeName = new String(typeBytes, "UTF-8")
+                  debug(s"type name: $typeName, byteSize:${typeBytes.length}")
+                  typeName
+              }
             case F_FIXEXT1 =>
               in.lookahead(1) match {
                 case F_EXT_ELIDED_TAG =>
@@ -356,7 +375,7 @@ package msgpack {
             case F_FIXEXT4 =>
               in.lookahead(1) match {
                 case F_EXT_OBJREF =>
-
+                  ""
               }
             case _ =>
               debug(f"la1: $la1%02x")
@@ -365,12 +384,16 @@ package msgpack {
 
 
         }
-
-
-
       }
 
-      ""
+      if (res.isInstanceOf[String]) {
+        _lastTagRead = null
+        _lastTypeStringRead = res.asInstanceOf[String]
+        _lastTypeStringRead
+      } else {
+        _lastTagRead = res.asInstanceOf[FastTypeTag[_]]
+        _lastTagRead.key
+      }
     }
 
 
@@ -384,7 +407,10 @@ package msgpack {
         case KEY_BYTE =>
           newpos = pos + 1
           in.readByte
-
+        case KEY_INT =>
+          in.decodeInt
+        case KEY_SCALA_STRING | KEY_JAVA_STRING =>
+          in.decodeString
       }
       res
     }

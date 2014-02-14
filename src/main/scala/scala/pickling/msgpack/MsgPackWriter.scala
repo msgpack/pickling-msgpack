@@ -82,7 +82,7 @@ class MsgPackOutputArray(size:Int) extends MsgPackWriter {
   }
 }
 
-class MsgPackOutputBuffer() extends MsgPackWriter with Logger {
+class MsgPackOutputBuffer() extends MsgPackWriter  {
   private var buffer : Array[Byte] = null
   private var capacity = 0
   private var size = 0
@@ -156,7 +156,6 @@ class MsgPackOutputBuffer() extends MsgPackWriter with Logger {
   }
 
   def writeByte(v: Byte) = {
-    debug(f"write: $v%02x")
     ensureSize(size + 1)
     wrap.put(v)
     size += 1
@@ -169,7 +168,6 @@ class MsgPackOutputBuffer() extends MsgPackWriter with Logger {
   }
 
   def writeInt(v: Int) = {
-    debug(f"write int: $v")
     ensureSize(size + 4)
     wrap.putInt(v)
     size += 4

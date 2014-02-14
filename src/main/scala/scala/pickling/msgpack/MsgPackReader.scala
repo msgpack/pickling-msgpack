@@ -7,21 +7,30 @@
 
 package scala.pickling.msgpack
 
+import xerial.core.log.Logger
+
 /**
  * @author Taro L. Saito
  */
 trait MsgPackReader {
   def readByte : Byte
+  def read(len:Int) : Array[Byte]
   def lookahead : Byte
   def lookahead(k:Int) : Byte
   def decodeInt : Int
 }
 
 
-class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader {
+class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger {
   import MsgPackCode._
 
   private var pos = 0
+
+  def read(len:Int) : Array[Byte] = {
+    val slice = arr.slice(pos, pos+len)
+    pos += len
+    slice
+  }
 
   def readByte : Byte = {
     val v = arr(pos)
@@ -32,10 +41,39 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader {
   def lookahead = lookahead(0)
   def lookahead(k:Int) = arr(pos+k)
 
+  def decodeString : String = {
+    val prefix = arr(pos)
+    debug(f"decodeString: prefix $prefix%02x")
+    pos += 1
+    val strLen = prefix match {
+      case l if (l & 0xE0).toByte == F_FIXSTR_PREFIX =>
+        val len = l & 0x1F
+        len
+      case F_STR8 =>
+        val len = arr(pos)
+        pos += 1
+        len
+      case F_STR16 =>
+        val len = ((arr(pos) << 8) & 0xFF) | (arr(pos+1) & 0xFF)
+        pos += 2
+        len
+      case F_STR32 =>
+        val len =((arr(pos) << 24) & 0xFF) |
+            ((arr(pos+1) << 16) & 0xFF) |
+            ((arr(pos+2) << 8) & 0xFF) |
+            (arr(pos+3) & 0xFF)
+        pos += 4
+        len
+    }
+    new String(read(strLen), "UTF-8")
+  }
+
   def decodeInt : Int = {
     val prefix = arr(pos)
-    import scala.pickling.msgpack.MsgPackPickleFormat
     prefix match {
+      case l if l < 127 =>
+        pos += 1
+        prefix
       case F_UINT8 =>
         val v = arr(pos + 1).toInt
         pos += 2
