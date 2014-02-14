@@ -28,7 +28,7 @@ import org.scalatest.prop.PropertyChecks
  */
 class PicklingTest extends PicklingSpec  {
 
-  import org.scalacheck._
+  import PropertyChecks._
 
   def toHEX(b:Array[Byte]) = b.map(c => f"$c%x").mkString
 
@@ -45,11 +45,9 @@ class PicklingTest extends PicklingSpec  {
   "MsgPack" should {
 
     "serialize int" in {
-      (Prop.forAll { (i:Int) =>
+      forAll { (i:Int) =>
         check(i)
-        true
-      }).check
-
+      }
     }
 
   }
