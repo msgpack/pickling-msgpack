@@ -181,11 +181,12 @@ package msgpack {
       wroteBytes + len
     }
 
-
+    private var currentHint : Hints = null
 
     def beginEntry(picklee: Any) = withHints { hints =>
 
       debug(s"hints: $hints")
+      currentHint = hints
       mkByteBuffer(hints.knownSize)
 
       if(picklee == null)
@@ -283,7 +284,7 @@ package msgpack {
     }
 
     def beginCollection(length: Int) : PBuilder = {
-      trace(s"begin collection: $length")
+      debug(s"begin collection: $length, $currentHint")
       if(length < (1 << 4))
         byteBuffer.writeByte((F_ARRAY_PREFIX | length).toByte)
       else if(length < (1 << 16)) {

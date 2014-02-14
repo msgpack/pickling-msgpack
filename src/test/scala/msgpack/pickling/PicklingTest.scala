@@ -124,7 +124,10 @@ class PicklingTest extends PicklingSpec {
       check(Set(Person(1, "leo"), Person(2, "yui")))
     }
 
-
+    "serialize Map types" taggedAs(Tag("map")) in {
+      import msgpack._
+      check(Map(1->Person(1, "leo")))
+    }
 
 
   }
