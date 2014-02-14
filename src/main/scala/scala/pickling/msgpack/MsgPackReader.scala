@@ -39,18 +39,25 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
     v
   }
 
+  def readInt8 : Int = {
+    val v = (arr(pos) & 0xFF).toInt
+    pos += 1
+    v
+  }
+
+
   def readInt16 : Int = {
-    val v = (((arr(pos + 1) & 0xFF) << 8) | (arr(pos+2) & 0xFF)).toInt
+    val v = (((arr(pos) & 0xFF) << 8) | (arr(pos+1) & 0xFF)).toInt
     pos += 2
     v
   }
 
   def readInt32 : Int = {
     val v =
-      (((arr(pos+1) & 0xFF) << 24)
-        | ((arr(pos+2) & 0xFF) << 16)
-        | ((arr(pos+3) & 0xFF) << 8)
-        | (arr(pos+4) & 0xFF)).toInt
+      (((arr(pos) & 0xFF) << 24)
+        | ((arr(pos+1) & 0xFF) << 16)
+        | ((arr(pos+2) & 0xFF) << 8)
+        | (arr(pos+3) & 0xFF)).toInt
     pos += 4
     v
   }
@@ -65,13 +72,7 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
     pos += 1
     if(c != F_FLOAT32)
       invalidCode(c, "not a float")
-    val v = java.lang.Float.intBitsToFloat(
-      ((arr(pos) & 0xFF) << 24) |
-        ((arr(pos+1) & 0xFF) << 16) |
-        ((arr(pos+2) & 0xFF) << 8) |
-        (arr(pos+3) & 0xFF))
-    pos += 4
-    v
+    java.lang.Float.intBitsToFloat(readInt32)
   }
 
   def decodeDouble : Double = {
@@ -135,26 +136,16 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
 
   def decodeInt : Int = {
     val prefix = arr(pos)
+    pos += 1
     prefix match {
       case l if l < 127 =>
-        pos += 1
         prefix
       case F_UINT8 =>
-        val v = arr(pos + 1).toInt
-        pos += 2
-        v
+        readInt8
       case F_UINT16 =>
-        val v = (((arr(pos + 1) & 0xFF) << 8) | (arr(pos+2) & 0xFF)).toInt
-        pos += 3
-        v
+        readInt16
       case F_UINT32 =>
-        val v =
-          (((arr(pos+1) & 0xFF) << 24)
-            | ((arr(pos+2) & 0xFF) << 16)
-            | ((arr(pos+3) & 0xFF) << 8)
-            | (arr(pos+4) & 0xFF)).toInt
-        pos += 5
-        v
+        readInt32
       case F_UINT64 =>
         throw new IllegalStateException("Cannot decode UINT64")
 //        val v =
@@ -169,21 +160,13 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
 //        pos += 9
 //        v
       case F_INT8 =>
-        val v = arr(pos + 1)
-        pos += 2
+        val v = readInt8
         if(v < 0) v & (~0 << 8) else v
       case F_INT16 =>
-        val p = arr(pos+1)
-        val v = (((arr(pos + 1) & 0xFF) << 8) | (arr(pos+2) & 0xFF)).toInt
-        pos += 3
-        if(p < 0) v & (~0 << 16) else v
+        val v = readInt16
+        if(v < 0) v & (~0 << 16) else v
       case F_INT32 =>
-        val v =
-          (((arr(pos+1) & 0xFF) << 24)
-            | ((arr(pos+2) & 0xFF) << 16)
-            | ((arr(pos+3) & 0xFF) << 8)
-            | (arr(pos+4) & 0xFF)).toInt
-        pos += 5
+        val v = readInt32
         v
       case F_INT64 =>
         throw new IllegalStateException("Cannot decode INT64")
