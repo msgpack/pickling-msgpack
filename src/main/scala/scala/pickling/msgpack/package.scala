@@ -135,11 +135,11 @@ package msgpack {
       val len = bytes.length
       if(len < (1 << 5)) {
         byteBuffer.writeByte((F_FIXSTR_PREFIX | (len & 0x1F)).toByte)
-      } else if(len < (1 << 8)) {
+      } else if(len < (1 << 7)) {
         byteBuffer.writeByte(F_STR8)
         byteBuffer.writeByte((len & 0xFF).toByte)
       }
-      else if(len < (1 << 16)) {
+      else if(len < (1 << 15)) {
         byteBuffer.writeByte(F_STR16)
         byteBuffer.writeByte(((len >> 8) & 0xFF).toByte)
         byteBuffer.writeByte((len & 0xFF).toByte)
@@ -158,7 +158,7 @@ package msgpack {
     private def packByteArray(b:Array[Byte]) = {
       val len = b.length
       val wroteBytes =
-        if(len < 15) {
+        if(len < (1 << 4)) {
           byteBuffer.writeByte((F_ARRAY_PREFIX | len).toByte)
           1
         }
