@@ -21,7 +21,7 @@ trait MsgPackReader {
 }
 
 
-class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger {
+class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader {
   import MsgPackCode._
 
   private var pos = 0
@@ -43,7 +43,6 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
 
   def decodeString : String = {
     val prefix = arr(pos)
-    debug(f"decodeString: prefix $prefix%02x")
     pos += 1
     val strLen = prefix match {
       case l if (l & 0xE0).toByte == F_FIXSTR_PREFIX =>
