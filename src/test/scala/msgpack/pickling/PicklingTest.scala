@@ -19,6 +19,7 @@ import PicklingTest._
 import scala.pickling._
 import scala.reflect.ClassTag
 import org.scalatest.Tag
+import scala.language.existentials
 
 
 /**
@@ -78,20 +79,19 @@ class PicklingTest extends PicklingSpec {
       p shouldBe pp
     }
 
+    def check[A : FastTypeTag : SPickler : Unpickler](v:A) = {
+      import msgpack._
+      debug(s"pickling $v")
+      val encoded = v.pickle
+      debug(s"unpickling $encoded")
+      val decoded = encoded.unpickle[A]
+      debug(s"decoded $decoded")
+      decoded shouldBe (v)
+    }
 
 
     "serialize primitive types in msgpack format" taggedAs(Tag("primitive")) in {
       import msgpack._
-
-      def check[A : FastTypeTag : SPickler : Unpickler](v:A) = {
-        debug(s"pickling $v")
-        val encoded = v.pickle
-        debug(s"unpickling $encoded")
-        val decoded = encoded.unpickle[A]
-        decoded shouldBe (v)
-      }
-
-
 
       check(1)
       check("hello world")
@@ -109,18 +109,22 @@ class PicklingTest extends PicklingSpec {
 
     }
 
-    "should serialize Array types" taggedAs(Tag("array")) in {
+    "serialize Array types" taggedAs(Tag("array")) in {
       import msgpack._
 
       val in = Array(Person(1, "leo"), Person(2, "yui"))
-      debug(in.mkString(", "))
-      val p = in.pickle
-      debug(p)
-      val up = p.unpickle[Array[Person]]
-      debug(up.mkString(", "))
-
-      up shouldBe in
+      check(in)
     }
+
+    "serialize Seq types" in {
+      import msgpack._
+      check(Seq(Person(1, "leo"), Person(2, "yui")))
+      check(IndexedSeq(Person(1, "leo"), Person(2, "yui")))
+      check(Vector(Person(1, "leo"), Person(2, "yui")))
+      check(Set(Person(1, "leo"), Person(2, "yui")))
+    }
+
+
 
 
   }

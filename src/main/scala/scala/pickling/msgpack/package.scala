@@ -83,7 +83,6 @@ package msgpack {
     }
 
     private def packLong(d:Long) : Int = {
-      debug(s"packLong: $d")
       if (d < -(1L << 5)) {
         if (d < -(1L << 15)) {
           if(d < -(1L << 31)) {
@@ -201,7 +200,7 @@ package msgpack {
       } else {
         if(!hints.isElidedType) {
           // Type name is present
-          debug(s"encode type name: ${hints.tag.key}")
+          trace(s"encode type name: ${hints.tag.key}")
           val tpeBytes = hints.tag.key.getBytes("UTF-8")
           tpeBytes.length match {
             case l if l < (1 << 7) =>
@@ -284,7 +283,7 @@ package msgpack {
     }
 
     def beginCollection(length: Int) : PBuilder = {
-      info(s"begin collection: $length")
+      trace(s"begin collection: $length")
       if(length < (1 << 4))
         byteBuffer.writeByte((F_ARRAY_PREFIX | length).toByte)
       else if(length < (1 << 16)) {
@@ -338,7 +337,7 @@ package msgpack {
 
     def beginEntryNoTag() : String = {
       val res : Any = withHints { hints =>
-        debug(s"beginEntry $hints")
+        trace(s"beginEntry $hints")
         if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
           val la1 = in.lookahead
           la1 match {
@@ -434,7 +433,7 @@ package msgpack {
         case KEY_CHAR =>
           in.decodeInt.toChar
       }
-      debug(s"readPrimitive[$key] $res")
+      trace(s"readPrimitive[$key] $res")
       res
     }
 
@@ -445,7 +444,6 @@ package msgpack {
     def endEntry() : Unit = { /* do nothing */ }
 
     def beginCollection() : PReader = {
-      debug(s"begin collection")
       this
     }
 
@@ -470,7 +468,7 @@ package msgpack {
         case l =>
           throw invalidCode(c, "unknown collection type")
       }
-      debug(s"readLength: $len")
+      trace(s"readLength: $len")
       len
     }
 
