@@ -20,14 +20,40 @@ import scala.pickling._
 import scala.reflect.ClassTag
 import org.scalatest.Tag
 import scala.language.existentials
+import org.scalatest.prop.PropertyChecks
 
 
 /**
  * @author Taro L. Saito
  */
-class PicklingTest extends PicklingSpec {
+class PicklingTest extends PicklingSpec  {
+
+  import org.scalacheck._
 
   def toHEX(b:Array[Byte]) = b.map(c => f"$c%x").mkString
+
+  def check[A : FastTypeTag : SPickler : Unpickler](v:A) = {
+    import msgpack._
+    debug(s"pickling $v")
+    val encoded = v.pickle
+    debug(s"unpickling $encoded")
+    val decoded = encoded.unpickle[A]
+    debug(s"decoded $decoded")
+    decoded shouldBe (v)
+  }
+
+  "MsgPack" should {
+
+    "serialize int" in {
+      (Prop.forAll { (i:Int) =>
+        check(i)
+        true
+      }).check
+
+    }
+
+  }
+
 
   "Pickling" should {
 
@@ -79,15 +105,6 @@ class PicklingTest extends PicklingSpec {
       p shouldBe pp
     }
 
-    def check[A : FastTypeTag : SPickler : Unpickler](v:A) = {
-      import msgpack._
-      debug(s"pickling $v")
-      val encoded = v.pickle
-      debug(s"unpickling $encoded")
-      val decoded = encoded.unpickle[A]
-      debug(s"decoded $decoded")
-      decoded shouldBe (v)
-    }
 
 
     "serialize primitive types in msgpack format" taggedAs(Tag("primitive")) in {
