@@ -14,6 +14,7 @@ import xerial.core.log.Logger
  */
 trait MsgPackReader {
   def readByte : Byte
+  def readInt16 : Int
   def read(len:Int) : Array[Byte]
   def lookahead : Byte
   def lookahead(k:Int) : Byte
@@ -35,6 +36,22 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
   def readByte : Byte = {
     val v = arr(pos)
     pos += 1
+    v
+  }
+
+  def readInt16 : Int = {
+    val v = (((arr(pos + 1) & 0xFF) << 8) | (arr(pos+2) & 0xFF)).toInt
+    pos += 2
+    v
+  }
+
+  def readInt32 : Int = {
+    val v =
+      (((arr(pos+1) & 0xFF) << 24)
+        | ((arr(pos+2) & 0xFF) << 16)
+        | ((arr(pos+3) & 0xFF) << 8)
+        | (arr(pos+4) & 0xFF)).toInt
+    pos += 4
     v
   }
 

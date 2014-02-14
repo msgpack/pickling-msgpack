@@ -102,8 +102,21 @@ class PicklingTest extends PicklingSpec {
       check(34.toByte)
 
       // check(null)
-      check(Prim(1, 43.43234f, 0.32434234234, false, 9234234L, 42.toByte, "Hello"))
+      check(Prim(1, 43.43234f, 0.32434234234, false, 9234234L, 42.toByte, "Hello Scala Pickling"))
 
+    }
+
+    "should serialize Array types" taggedAs(Tag("array")) in {
+      import msgpack._
+
+      val in = Array(Person(1, "leo"), Person(2, "yui"))
+      debug(in.mkString(", "))
+      val p = in.pickle
+      debug(p)
+      val up = p.unpickle[Array[Person]]
+      debug(up.mkString(", "))
+
+      up shouldBe in
     }
 
 

@@ -186,7 +186,7 @@ package msgpack {
 
     def beginEntry(picklee: Any) = withHints { hints =>
 
-      trace(s"hints: $hints")
+      debug(s"hints: $hints")
       mkByteBuffer(hints.knownSize)
 
       if(picklee == null)
@@ -201,6 +201,7 @@ package msgpack {
       } else {
         if(!hints.isElidedType) {
           // Type name is present
+          debug(s"encode type name: ${hints.tag.key}")
           val tpeBytes = hints.tag.key.getBytes("UTF-8")
           tpeBytes.length match {
             case l if l < (1 << 7) =>
@@ -220,6 +221,7 @@ package msgpack {
           byteBuffer.writeByte(F_EXT_TYPE_NAME)
           byteBuffer.write(tpeBytes)
         }
+
 
         hints.tag.key match {
           case KEY_NULL =>
@@ -282,6 +284,7 @@ package msgpack {
     }
 
     def beginCollection(length: Int) : PBuilder = {
+      info(s"begin collection: $length")
       if(length < (1 << 4))
         byteBuffer.writeByte((F_ARRAY_PREFIX | length).toByte)
       else if(length < (1 << 16)) {
@@ -335,6 +338,7 @@ package msgpack {
 
     def beginEntryNoTag() : String = {
       val res : Any = withHints { hints =>
+        debug(s"beginEntry $hints")
         if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
           val la1 = in.lookahead
           la1 match {
@@ -440,10 +444,33 @@ package msgpack {
 
     def endEntry() : Unit = { /* do nothing */ }
 
-    def beginCollection() : PReader = this
+    def beginCollection() : PReader = {
+      debug(s"begin collection")
+      this
+    }
 
+    private def invalidCode(code:Byte, message:String) = new IllegalStateException(f"invalid code [$code%02x]: $message")
+
+    /**
+     * Read the length of collection
+     */
     def readLength() : Int = {
-      val len = in.decodeInt
+      val c = in.readByte
+      val len = c match {
+        case l if (l & 0xF0).toByte == F_ARRAY_PREFIX =>
+          l & 0x0F
+        case F_ARRAY16 =>
+          in.readInt16
+        case F_ARRAY32 =>
+          in.readInt32
+        case F_MAP16 =>
+          in.readInt16
+        case F_MAP32 =>
+          in.readInt32
+        case l =>
+          throw invalidCode(c, "unknown collection type")
+      }
+      debug(s"readLength: $len")
       len
     }
 
