@@ -15,6 +15,7 @@ object PicklingTest {
 
 import PicklingTest._
 import scala.pickling._
+import scala.reflect.ClassTag
 
 
 /**
@@ -71,6 +72,24 @@ class PicklingTest extends PicklingSpec {
       val pp = pckl.unpickle[Person]
       debug(pp)
 
+      p shouldBe pp
+    }
+
+
+
+    "serialize various types in msgpack format" in {
+
+      import msgpack._
+      def check(v:Any) {
+        val encoded = v.pickle
+        val decoded : Any = encoded.unpickle[Any]
+        decoded shouldBe (v)
+      }
+
+      check(1)
+      check("hello world")
+      check(true)
+      check(false)
     }
 
 
