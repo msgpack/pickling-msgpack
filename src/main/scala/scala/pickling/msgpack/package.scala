@@ -83,6 +83,7 @@ package msgpack {
     }
 
     private def packLong(d:Long) : Int = {
+      debug(s"packLong: $d")
       if (d < -(1L << 5)) {
         if (d < -(1L << 15)) {
           if(d < -(1L << 31)) {
@@ -185,7 +186,7 @@ package msgpack {
 
     def beginEntry(picklee: Any) = withHints { hints =>
 
-      debug(s"hints: $hints")
+      trace(s"hints: $hints")
       mkByteBuffer(hints.knownSize)
 
       if(picklee == null)
@@ -408,13 +409,16 @@ package msgpack {
     def atPrimitive = primitives.contains(lastTagRead.key)
 
     def readPrimitive() : Any = {
-      val res = lastTagRead.key match {
+      val key = lastTagRead.key
+      val res = key match {
         case KEY_NULL => null
         case KEY_REF =>  null // TODO
         case KEY_BYTE =>
-          in.decodeInt
+          in.decodeInt.toByte
         case KEY_INT =>
           in.decodeInt
+        case KEY_LONG =>
+          in.decodeLong
         case KEY_SCALA_STRING | KEY_JAVA_STRING =>
           in.decodeString
         case KEY_BOOLEAN =>
@@ -426,6 +430,7 @@ package msgpack {
         case KEY_CHAR =>
           in.decodeInt.toChar
       }
+      debug(s"readPrimitive[$key] $res")
       res
     }
 

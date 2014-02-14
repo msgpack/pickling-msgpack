@@ -11,6 +11,8 @@ object PicklingTest {
 
   case class Person(id:Int, name:String)
 
+  case class Prim(c1:Int, c2:Float, c3:Double, c4:Boolean, c5:Long, c6:Byte, c7:String)
+
 }
 
 import PicklingTest._
@@ -100,6 +102,8 @@ class PicklingTest extends PicklingSpec {
       check(34.toByte)
 
       // check(null)
+      check(Prim(1, 43.43234f, 0.32434234234, false, 9234234L, 42.toByte, "Hello"))
+
     }
 
 
