@@ -11,6 +11,8 @@ package object msgpack {
   implicit val msgpackFormat = new MsgPackPickleFormat
   implicit def toMsgPackPickle(value:Array[Byte]) : MsgPackPickle = MsgPackPickle(value)
 
+
+
   private[msgpack] def toHEX(b:Array[Byte]) = b.map(x => f"$x%02x").mkString
 }
 
