@@ -82,13 +82,16 @@ class PicklingTest extends PicklingSpec {
 
     "serialize primitive types in msgpack format" taggedAs(Tag("primitive")) in {
       import msgpack._
-      def check(v:Any) {
+
+      def check[A : FastTypeTag : SPickler : Unpickler](v:A) = {
         debug(s"pickling $v")
         val encoded = v.pickle
         debug(s"unpickling $encoded")
-        val decoded : Any = encoded.unpickle[Any]
+        val decoded = encoded.unpickle[A]
         decoded shouldBe (v)
       }
+
+
 
       check(1)
       check("hello world")
