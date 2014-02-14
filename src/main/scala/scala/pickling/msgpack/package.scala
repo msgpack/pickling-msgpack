@@ -223,6 +223,8 @@ package msgpack {
         hints.tag.key match {
           case KEY_NULL =>
             byteBuffer.writeByte(F_NULL)
+          case KEY_BOOLEAN =>
+            byteBuffer.writeByte(if(picklee.asInstanceOf[Boolean]) F_TRUE else F_FALSE)
           case KEY_BYTE =>
             byteBuffer.writeByte(picklee.asInstanceOf[Byte])
           case KEY_SHORT =>
@@ -403,6 +405,8 @@ package msgpack {
           in.decodeInt
         case KEY_SCALA_STRING | KEY_JAVA_STRING =>
           in.decodeString
+        case KEY_BOOLEAN =>
+          in.decodeBoolean
       }
       res
     }
@@ -430,6 +434,9 @@ package msgpack {
     val F_EXT_OBJREF : Byte = 1.toByte
     val F_EXT_ELIDED_TAG : Byte = 2.toByte
     val F_EXT_TYPE_NAME : Byte = 3.toByte
+
+    val F_FALSE = 0xC2.toByte
+    val F_TRUE = 0xC3.toByte
 
     val F_EXT8 = 0xC7.toByte
     val F_EXT16 = 0xC8.toByte

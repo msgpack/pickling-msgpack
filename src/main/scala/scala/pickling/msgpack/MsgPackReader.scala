@@ -41,6 +41,17 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader {
   def lookahead = lookahead(0)
   def lookahead(k:Int) = arr(pos+k)
 
+  def decodeBoolean : Boolean = {
+    val c = arr(pos)
+    pos += 1
+    c match {
+      case F_TRUE =>
+        true
+      case F_FALSE =>
+        false
+    }
+  }
+
   def decodeString : String = {
     val prefix = arr(pos)
     pos += 1
