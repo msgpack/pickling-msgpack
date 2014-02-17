@@ -25,6 +25,9 @@ abstract class MsgPackWriter extends Output[Array[Byte]] {
   def writeShort(v:Short) : Unit
   def writeChar(v:Char) : Unit
   def writeInt(v:Int) : Unit
+  def writeInt16(v:Int) : Unit
+  def writeInt32(v:Int) : Unit
+
   def writeLong(v:Long) : Unit
   def writeFloat(v:Float) : Unit
   def writeDouble(v:Double) : Unit
@@ -68,6 +71,18 @@ class MsgPackOutputArray(size:Int) extends MsgPackWriter {
   def writeByte(v: Byte) = arr.put(v)
   def writeShort(v: Short) = arr.putShort(v)
   def writeInt(v: Int) = arr.putInt(v)
+  def writeInt16(v:Int) = {
+    writeByte(((v >>> 8) & 0xFF).toByte)
+    writeByte((v & 0xFF).toByte)
+  }
+
+  def writeInt32(v:Int) = {
+    writeByte(((v >>> 24) & 0xFF).toByte)
+    writeByte(((v >>> 16) & 0xFF).toByte)
+    writeByte(((v >>> 8) & 0xFF).toByte)
+    writeByte((v & 0xFF).toByte)
+  }
+
   def writeChar(v:Char) = arr.putChar(v)
   def writeLong(v: Long) = arr.putLong(v)
   def writeFloat(v: Float) = arr.putFloat(v)
@@ -172,6 +187,24 @@ class MsgPackOutputBuffer() extends MsgPackWriter  {
     wrap.putInt(v)
     size += 4
   }
+
+  def writeInt16(v:Int) = {
+    ensureSize(size + 2)
+    writeByte(((v >>> 8) & 0xFF).toByte)
+    writeByte((v & 0xFF).toByte)
+    size += 2
+  }
+
+  def writeInt32(v:Int) = {
+    ensureSize(size+4)
+    writeByte(((v >>> 24) & 0xFF).toByte)
+    writeByte(((v >>> 16) & 0xFF).toByte)
+    writeByte(((v >>> 8) & 0xFF).toByte)
+    writeByte((v & 0xFF).toByte)
+    size += 4
+  }
+
+
   def writeChar(v:Char) = {
     ensureSize(size + 2)
     wrap.putChar(v)

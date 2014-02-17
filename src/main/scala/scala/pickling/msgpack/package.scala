@@ -149,15 +149,11 @@ package msgpack {
       }
       else if(len < (1 << 15)) {
         byteBuffer.writeByte(F_STR16)
-        byteBuffer.writeByte(((len >> 8) & 0xFF).toByte)
-        byteBuffer.writeByte((len & 0xFF).toByte)
+        byteBuffer.writeInt16(len)
       }
       else {
         byteBuffer.writeByte(F_STR32)
-        byteBuffer.writeByte(((len >> 24) & 0xFF).toByte)
-        byteBuffer.writeByte(((len >> 16) & 0xFF).toByte)
-        byteBuffer.writeByte(((len >> 8) & 0xFF).toByte)
-        byteBuffer.writeByte((len & 0xFF).toByte)
+        byteBuffer.writeInt32(len)
       }
       byteBuffer.write(bytes, 0, len)
       1 + len
@@ -172,16 +168,12 @@ package msgpack {
         }
         else if(len < (1 << 16)) {
           byteBuffer.writeByte(F_ARRAY16)
-          byteBuffer.writeByte(((len >>> 8) & 0xFF).toByte)
-          byteBuffer.writeByte((len & 0xFF).toByte)
+          byteBuffer.writeInt16(len)
           3
         }
         else {
           byteBuffer.writeByte(F_ARRAY32)
-          byteBuffer.writeByte(((len >>> 24) & 0xFF).toByte)
-          byteBuffer.writeByte(((len >>> 16) & 0xFF).toByte)
-          byteBuffer.writeByte(((len >>> 8) & 0xFF).toByte)
-          byteBuffer.writeByte((len & 0xFF).toByte)
+          byteBuffer.writeInt32(len)
           5
         }
       byteBuffer.write(b, 0, len)
@@ -216,14 +208,10 @@ package msgpack {
               byteBuffer.writeByte((l & 0xFF).toByte)
             case l if l < (1 << 15) =>
               byteBuffer.writeByte(F_EXT16)
-              byteBuffer.writeByte(((l >>> 8) & 0xFF).toByte)
-              byteBuffer.writeByte((l & 0xFF).toByte)
+              byteBuffer.writeInt16(l)
             case l =>
               byteBuffer.writeByte(F_EXT32)
-              byteBuffer.writeByte(((l >>> 24) & 0xFF).toByte)
-              byteBuffer.writeByte(((l >>> 16) & 0xFF).toByte)
-              byteBuffer.writeByte(((l >>> 8) & 0xFF).toByte)
-              byteBuffer.writeByte((l & 0xFF).toByte)
+              byteBuffer.writeInt32(l)
           }
           byteBuffer.writeByte(F_EXT_TYPE_NAME)
           byteBuffer.write(tpeBytes)
@@ -246,10 +234,7 @@ package msgpack {
           case KEY_FLOAT =>
             byteBuffer.writeByte(F_FLOAT32)
             val l = java.lang.Float.floatToIntBits(picklee.asInstanceOf[Float])
-            byteBuffer.writeByte(((l >>> 24) & 0xFF).toByte)
-            byteBuffer.writeByte(((l >>> 16) & 0xFF).toByte)
-            byteBuffer.writeByte(((l >>> 8) & 0xFF).toByte)
-            byteBuffer.writeByte((l & 0xFF).toByte)
+            byteBuffer.writeInt32(l)
           case KEY_DOUBLE =>
             byteBuffer.writeByte(F_FLOAT64)
             val l = java.lang.Double.doubleToLongBits(picklee.asInstanceOf[Double])
