@@ -42,149 +42,11 @@ package msgpack {
       }
     }
 
-
-    /**
-     * Pack and write an integer value then returns written byte size
-     * @param d
-     * @return byte size written
-     */
-    private def packInt(d:Int) : Int = {
-      if (d < -(1 << 5)) {
-        if (d < -(1 << 15)) {
-          // signed 32
-          byteBuffer.writeByteAndInt(F_INT32, d)
-          5
-        }
-        else if (d < -(1 << 7)) {
-          // signed 16
-          byteBuffer.writeByteAndShort(F_INT16, d.toShort)
-          3
-        }
-        else {
-          // signed 8
-          byteBuffer.writeByte(F_INT8)
-          byteBuffer.writeByte((d & 0xFF).toByte)
-          2
-        }
-      }
-      else if (d < (1 << 7)) {
-        // fixnum
-        byteBuffer.writeByte(d.toByte)
-        1
-      }
-      else {
-        if (d < (1 << 8)) {
-          // unsigned 8
-          byteBuffer.writeByteAndByte(F_UINT8, d.toByte)
-          2
-        } else if (d < (1 << 16)) {
-          // unsigned 16
-          byteBuffer.writeByteAndShort(F_UINT16, d.toShort)
-          3
-        } else {
-          // unsigned 32
-          byteBuffer.writeByteAndInt(F_UINT32, d)
-          5
-        }
-      }
-    }
-
-    private def packLong(d:Long) : Int = {
-      if (d < -(1L << 5)) {
-        if (d < -(1L << 15)) {
-          if(d < -(1L << 31)) {
-            // signed 64
-            byteBuffer.writeByteAndLong(F_INT64, d)
-            9
-          }
-          else {
-            // signed 32
-            byteBuffer.writeByteAndInt(F_INT32, d.toInt)
-            5
-          }
-        } else if (d < -(1 << 7)) {
-          // signed 16
-          byteBuffer.writeByteAndShort(F_INT16, d.toShort)
-          3
-        } else {
-          // signed 8
-          byteBuffer.writeByteAndByte(F_INT8, d.toByte)
-          2
-        }
-      } else if (d < (1L << 7)) {
-        // fixnum
-        byteBuffer.writeByte(d.toByte)
-        1
-      } else {
-        if (d < (1L << 8)) {
-          // unsigned 8
-          byteBuffer.writeByteAndByte(F_UINT8, d.toByte)
-          2
-        } else if (d < (1L << 16)) {
-          // unsigned 16
-          byteBuffer.writeByteAndShort(F_UINT16, d.toShort)
-          3
-        } else if (d < (1L << 32)) {
-          // unsigned 32
-          byteBuffer.writeByteAndInt(F_UINT32, d.toInt)
-          5
-        }
-        else {
-          // unsigned 64
-          byteBuffer.writeByteAndLong(F_UINT64, d)
-          9
-        }
-      }
-
-    }
-
-    private def packString(s:String) = {
-      val bytes = s.getBytes("UTF-8")
-      val len = bytes.length
-      if(len < (1 << 5)) {
-        byteBuffer.writeByte((F_FIXSTR_PREFIX | (len & 0x1F)).toByte)
-      } else if(len < (1 << 7)) {
-        byteBuffer.writeByte(F_STR8)
-        byteBuffer.writeByte((len & 0xFF).toByte)
-      }
-      else if(len < (1 << 15)) {
-        byteBuffer.writeByte(F_STR16)
-        byteBuffer.writeInt16(len)
-      }
-      else {
-        byteBuffer.writeByte(F_STR32)
-        byteBuffer.writeInt32(len)
-      }
-      byteBuffer.write(bytes, 0, len)
-      1 + len
-    }
-
-    private def packByteArray(b:Array[Byte]) = {
-      val len = b.length
-      val wroteBytes =
-        if(len < (1 << 4)) {
-          byteBuffer.writeByte((F_ARRAY_PREFIX | len).toByte)
-          1
-        }
-        else if(len < (1 << 16)) {
-          byteBuffer.writeByte(F_ARRAY16)
-          byteBuffer.writeInt16(len)
-          3
-        }
-        else {
-          byteBuffer.writeByte(F_ARRAY32)
-          byteBuffer.writeInt32(len)
-          5
-        }
-      byteBuffer.write(b, 0, len)
-      wroteBytes + len
-    }
-
     private var currentHint : Hints = null
 
     def beginEntry(picklee: Any) = withHints { hints =>
 
-      trace(s"hints: $hints")
+      debug(s"hints: $hints")
       currentHint = hints
       mkByteBuffer(hints.knownSize)
 
@@ -200,7 +62,11 @@ package msgpack {
       } else {
         if(!hints.isElidedType) {
           // Type name is present
-          trace(s"encode type name: ${hints.tag.key}")
+          val tpe = hints.tag.tpe
+          val cls = hints.tag.mirror.runtimeClass(tpe)
+          debug(s"encode type name: ${hints.tag.tpe} runtime class: $cls")
+
+
           val tpeBytes = hints.tag.key.getBytes("UTF-8")
           tpeBytes.length match {
             case l if l < (1 << 7) =>
@@ -224,13 +90,13 @@ package msgpack {
           case KEY_BOOLEAN =>
             byteBuffer.writeByte(if(picklee.asInstanceOf[Boolean]) F_TRUE else F_FALSE)
           case KEY_BYTE =>
-            packInt(picklee.asInstanceOf[Byte])
+            byteBuffer.packInt(picklee.asInstanceOf[Byte])
           case KEY_SHORT =>
             byteBuffer.writeShort(picklee.asInstanceOf[Short])
           case KEY_CHAR =>
-            packInt(picklee.asInstanceOf[Char])
+            byteBuffer.packInt(picklee.asInstanceOf[Char])
           case KEY_INT =>
-            packInt(picklee.asInstanceOf[Int])
+            byteBuffer.packInt(picklee.asInstanceOf[Int])
           case KEY_FLOAT =>
             byteBuffer.writeByte(F_FLOAT32)
             val l = java.lang.Float.floatToIntBits(picklee.asInstanceOf[Float])
@@ -247,11 +113,11 @@ package msgpack {
             byteBuffer.writeByte(((l >>> 8) & 0xFF).toByte)
             byteBuffer.writeByte((l & 0xFF).toByte)
           case KEY_LONG =>
-            packLong(picklee.asInstanceOf[Long])
+            byteBuffer.packLong(picklee.asInstanceOf[Long])
           case KEY_SCALA_STRING | KEY_JAVA_STRING =>
-            packString(picklee.asInstanceOf[String])
+            byteBuffer.packString(picklee.asInstanceOf[String])
           case KEY_ARRAY_BYTE =>
-            packByteArray(picklee.asInstanceOf[Array[Byte]])
+            byteBuffer.packByteArray(picklee.asInstanceOf[Array[Byte]])
           case _ =>
             if(hints.isElidedType) {
               byteBuffer.writeByte(F_FIXEXT1)

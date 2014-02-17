@@ -35,6 +35,127 @@ abstract class MsgPackWriter extends Output[Array[Byte]] {
   def write(b:Array[Byte]) : Unit = write(b, 0, b.length)
   def write(b:Array[Byte], off:Int, len:Int) : Unit
   def write(bb:ByteBuffer) : Unit
+
+  import MsgPackCode._
+
+  /**
+   * Write a packed integer value
+   * @param d
+   */
+  def packInt(d:Int) {
+    if (d < -(1 << 5)) {
+      if (d < -(1 << 15)) {
+        // signed 32
+        writeByteAndInt(F_INT32, d)
+      }
+      else if (d < -(1 << 7)) {
+        // signed 16
+        writeByteAndShort(F_INT16, d.toShort)
+      }
+      else {
+        // signed 8
+        writeByte(F_INT8)
+        writeByte((d & 0xFF).toByte)
+      }
+    }
+    else if (d < (1 << 7)) {
+      // fixnum
+      writeByte(d.toByte)
+    }
+    else {
+      if (d < (1 << 8)) {
+        // unsigned 8
+        writeByteAndByte(F_UINT8, d.toByte)
+      } else if (d < (1 << 16)) {
+        // unsigned 16
+        writeByteAndShort(F_UINT16, d.toShort)
+      } else {
+        // unsigned 32
+        writeByteAndInt(F_UINT32, d)
+      }
+    }
+  }
+
+
+
+  def packLong(d:Long) {
+    if (d < -(1L << 5)) {
+      if (d < -(1L << 15)) {
+        if(d < -(1L << 31)) {
+          // signed 64
+          writeByteAndLong(F_INT64, d)
+        }
+        else {
+          // signed 32
+          writeByteAndInt(F_INT32, d.toInt)
+        }
+      } else if (d < -(1 << 7)) {
+        // signed 16
+        writeByteAndShort(F_INT16, d.toShort)
+      } else {
+        // signed 8
+        writeByteAndByte(F_INT8, d.toByte)
+      }
+    } else if (d < (1L << 7)) {
+      // fixnum
+      writeByte(d.toByte)
+    } else {
+      if (d < (1L << 8)) {
+        // unsigned 8
+        writeByteAndByte(F_UINT8, d.toByte)
+      } else if (d < (1L << 16)) {
+        // unsigned 16
+        writeByteAndShort(F_UINT16, d.toShort)
+      } else if (d < (1L << 32)) {
+        // unsigned 32
+        writeByteAndInt(F_UINT32, d.toInt)
+      }
+      else {
+        // unsigned 64
+        writeByteAndLong(F_UINT64, d)
+      }
+    }
+
+  }
+
+  def packString(s:String) {
+    val bytes = s.getBytes("UTF-8")
+    val len = bytes.length
+    if(len < (1 << 5)) {
+      writeByte((F_FIXSTR_PREFIX | (len & 0x1F)).toByte)
+    } else if(len < (1 << 7)) {
+      writeByte(F_STR8)
+      writeByte((len & 0xFF).toByte)
+    }
+    else if(len < (1 << 15)) {
+      writeByte(F_STR16)
+      writeInt16(len)
+    }
+    else {
+      writeByte(F_STR32)
+      writeInt32(len)
+    }
+    write(bytes, 0, len)
+  }
+
+  def packByteArray(b:Array[Byte]) {
+    val len = b.length
+    val wroteBytes =
+      if(len < (1 << 4)) {
+        writeByte((F_ARRAY_PREFIX | len).toByte)
+      }
+      else if(len < (1 << 16)) {
+        writeByte(F_ARRAY16)
+        writeInt16(len)
+      }
+      else {
+        writeByte(F_ARRAY32)
+        writeInt32(len)
+      }
+    write(b, 0, len)
+  }
+
+
 }
 
 class MsgPackOutputArray(size:Int) extends MsgPackWriter {
