@@ -23,6 +23,9 @@ package msgpack {
 import scala.collection.immutable.Queue
 import xerial.lens.TypeUtil
 
+private sealed trait CodeState
+private case object CodeMap extends CodeState
+private case object CodeDefault extends CodeState
 
 case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     type ValueType = Array[Byte]
@@ -31,16 +34,12 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
   }
 
 
-  sealed trait EncodeState
-  private case object EncodeMap extends EncodeState
-  private case object EncodeDefault extends EncodeState
-
   class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:MsgPackWriter) extends PBuilder with PickleTools with Logger {
     import format._
     import MsgPackCode._
 
     private var byteBuffer: MsgPackWriter = out
-    private val stateStackOfElidedType = new scala.collection.mutable.Stack[EncodeState]()
+    private val stateStackOfElidedType = new scala.collection.mutable.Stack[CodeState]()
 
     private[this] def mkByteBuffer(knownSize: Int): Unit = {
       if (byteBuffer == null) {
@@ -52,7 +51,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def beginEntry(picklee: Any) = withHints { hints =>
 
-      debug(s"hints: $hints")
+      trace(s"hints: $hints")
       currentHint = hints
       mkByteBuffer(hints.knownSize)
 
@@ -77,11 +76,14 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
             classOf[Product].isAssignableFrom(c) && c.getSimpleName.startsWith("Tuple")
           }
 
-          info(s"encode type name: ${hints.tag.tpe} runtime class: $cls (${isTuple(cls)}), ${stateStackOfElidedType.headOption}")
+          trace(s"encode type name: ${hints.tag.tpe} runtime class: $cls (${isTuple(cls)}), ${stateStackOfElidedType.headOption}")
           stateStackOfElidedType.headOption match {
-            case Some(EncodeMap) if isTuple(cls) =>
-              warn("encode tuple")
+            case Some(CodeMap) if isTuple(cls) =>
+              trace("encode tuple")
               encodeTypeName = false
+            case s if TypeUtil.isMap(cls) => {
+              encodeTypeName = false
+            }
             case _ =>
               val tpeBytes = hints.tag.key.getBytes("UTF-8")
               tpeBytes.length match {
@@ -99,10 +101,11 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
               byteBuffer.write(tpeBytes)
           }
 
-          if(TypeUtil.isMap(cls))
-            stateStackOfElidedType.push(EncodeMap)
+          if(TypeUtil.isMap(cls)) {
+            stateStackOfElidedType.push(CodeMap)
+          }
           else
-            stateStackOfElidedType.push(EncodeDefault)
+            stateStackOfElidedType.push(CodeDefault)
         }
 
 
@@ -161,10 +164,10 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     }
 
     def beginCollection(length: Int) : PBuilder = {
-      debug(s"begin collection: $length, $currentHint, ${stateStackOfElidedType.top}")
+      trace(s"begin collection: $length, $currentHint, ${stateStackOfElidedType.top}")
 
       stateStackOfElidedType.top match {
-        case EncodeMap =>
+        case CodeMap =>
           if(length < (1 << 4))
             byteBuffer.writeByte((F_FIXMAP_PREFIX | length).toByte)
           else if(length < (1 << 16)) {
@@ -214,9 +217,11 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     import MsgPackCode._
 
     private val in = new MsgPackByteArrayReader(arr)
-    private var pos = 0
     private var _lastTagRead: FastTypeTag[_] = null
     private var _lastTypeStringRead: String  = null
+
+    private val codeStack = new scala.collection.mutable.Stack[CodeState]()
+
 
     private def lastTagRead: FastTypeTag[_] =
       if (_lastTagRead != null)
@@ -234,7 +239,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def beginEntryNoTag() : String = {
       val res : Any = withHints { hints =>
-        trace(s"beginEntry $hints")
+        debug(f"beginEntry $hints ${in.lookahead}%02x")
         if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
           val la1 = in.lookahead
           la1 match {
@@ -255,7 +260,13 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
         else if(hints.isElidedType && primitives.contains(hints.tag.key)) {
           hints.tag
         }
+        else if(hints.tag == null && !codeStack.isEmpty && codeStack.lastOption == Some(CodeMap) ) {
+          // tuple type
+          warn("tuple")
+          "Tuple2"
+        }
         else {
+          // Non-elided type
           val la1 = in.lookahead
           la1 match {
             case F_NULL =>
@@ -286,6 +297,21 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
                 case F_EXT_OBJREF =>
                   ""
               }
+            case l if (l & 0xF0).toByte == F_FIXMAP_PREFIX =>
+              // TODO generate FastTypeTag
+              codeStack.push(CodeMap)
+              "Map[Any,Any]"
+            case F_MAP16 =>
+              codeStack.push(CodeMap)
+              "Map[Any,Any]"
+            case l if (~l & 0x80) != 0 =>
+              KEY_INT
+            case F_INT8 | F_INT16 | F_INT32 | F_UINT8 | F_UINT16 | F_UINT32 =>
+              KEY_INT
+            case F_INT64 | F_UINT64 =>
+              KEY_LONG
+            case F_TRUE | F_FALSE =>
+              KEY_BOOLEAN
             case _ =>
               debug(f"la1: $la1%02x")
               ""
@@ -310,9 +336,11 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def readPrimitive() : Any = {
       val key = lastTagRead.key
+      debug(s"readPrimitive: ${key}")
       val res = key match {
         case KEY_NULL => null
-        case KEY_REF =>  null // TODO
+        case KEY_REF =>
+          null // TODO
         case KEY_BYTE =>
           in.decodeInt.toByte
         case KEY_INT =>
@@ -338,9 +366,13 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def readField(name: String) : MsgPackPickleReader = this
 
-    def endEntry() : Unit = { /* do nothing */ }
+    def endEntry() : Unit = {
+
+    }
 
     def beginCollection() : PReader = {
+      warn("begin collection")
+
       this
     }
 
@@ -367,13 +399,16 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
         case l =>
           throw invalidCode(c, "unknown collection type")
       }
-      trace(s"readLength: $len")
+      warn(s"readLength: $len")
       len
     }
 
     def readElement() : PReader = this
 
-    def endCollection() : Unit = { /* do nothing */ }
+    def endCollection() : Unit = {
+      if(!codeStack.isEmpty)
+        codeStack.pop()
+    }
   }
 
   object MsgPackCode {
