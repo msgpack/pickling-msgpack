@@ -194,24 +194,21 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
     val prefix = arr(pos)
     pos += 1
     prefix match {
-      case l if l > 0 =>
+      case l if (~l & 0x80) != 0 =>
+        prefix
+      case l if (l & 0xE0).toByte == F_NEG_FIXINT_PREFIX =>
         prefix
       case F_UINT8 =>
-        val v = arr(pos).asInstanceOf[Long]
-        pos += 1
-        v
+        readInt8
       case F_UINT16 =>
-        val v = (((arr(pos).asInstanceOf[Long] & 0xFF) << 8)
-          | (arr(pos+1).asInstanceOf[Long] & 0xFF))
-        pos += 2
-        v
+        readInt16
       case F_UINT32 =>
         val v =
           (((arr(pos).asInstanceOf[Long] & 0xFF) << 24)
             | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 16)
             | ((arr(pos+2).asInstanceOf[Long] & 0xFF) << 8)
             | (arr(pos+3).asInstanceOf[Long] & 0xFF))
-        pos += 4
+        pos += 8
         v
       case F_UINT64 =>
         val v =
@@ -226,14 +223,9 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
         pos += 8
         v
       case F_INT8 =>
-        val v = arr(pos)
-        pos += 1
-        if(v < 0) v | (~0 << 8) else v
+        readInt8
       case F_INT16 =>
-        val p = arr(pos)
-        val v = (((arr(pos) & 0xFF) << 8) | (arr(pos+1) & 0xFF)).toInt
-        pos += 2
-        if(p < 0) v | (~0 << 16) else v
+        readInt16
       case F_INT32 =>
         val p = arr(pos)
         val v =

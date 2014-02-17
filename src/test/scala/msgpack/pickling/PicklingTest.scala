@@ -82,7 +82,7 @@ class PicklingTest extends PicklingSpec  {
       p shouldBe pp
     }
 
-    "serialize objects in the default binary format" in {
+    "serialize objects in the default binary format" taggedAs("obj") in {
 
       val p = Person(1, "leo")
 

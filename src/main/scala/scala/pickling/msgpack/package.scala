@@ -141,7 +141,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def beginEntry(picklee: Any) = withHints { hints =>
 
-      trace(s"hints: $hints")
+      debug(s"hints: $hints")
       currentHint = hints
       mkByteBuffer(hints.knownSize)
 
@@ -329,7 +329,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def beginEntryNoTag() : String = {
       val res : Any = withHints { hints =>
-        debug(f"beginEntry $hints ${in.lookahead}%02x")
+        trace(f"beginEntry $hints ${in.lookahead}%02x")
         if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
           val la1 = in.lookahead
           la1 match {
@@ -421,7 +421,6 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def readPrimitive() : Any = {
       val key = lastTagRead.key
-      debug(s"readPrimitive: ${key}")
       val res = key match {
         case KEY_NULL => null
         case KEY_REF =>
@@ -456,7 +455,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     }
 
     def beginCollection() : PReader = {
-      warn("begin collection")
+      trace("begin collection")
 
       this
     }
@@ -484,7 +483,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
         case l =>
           throw invalidCode(c, "unknown collection type")
       }
-      warn(s"readLength: $len")
+      trace(s"readLength: $len")
       len
     }
 
