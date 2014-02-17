@@ -2,6 +2,9 @@ package scala.pickling
 
 import scala.reflect.runtime.universe.Mirror
 import scala.language.implicitConversions
+import scala.collection.generic.CanBuildFrom
+import xerial.core.log.Logger
+
 
 /**
  * @author Taro L. Saito
@@ -10,6 +13,73 @@ package object msgpack {
 
   implicit val msgpackFormat = new MsgPackPickleFormat
   implicit def toMsgPackPickle(value:Array[Byte]) : MsgPackPickle = MsgPackPickle(value)
+
+  implicit def msgpackImmMapPickler[K:FastTypeTag, V:FastTypeTag](implicit keyPickler: SPickler[K], valuePickler: SPickler[V], pairTag: FastTypeTag[(K, V)], collTag: FastTypeTag[Map[K, V]], format: PickleFormat, cbf: CanBuildFrom[Map[K, V], (K, V), Map[K, V]])
+    : SPickler[Map[K, V]] with Unpickler[Map[K, V]] = new SPickler[Map[K, V]] with Unpickler[Map[K, V]] with PickleTools with Logger {
+
+    override val format: PickleFormat = msgpackFormat
+
+    import scala.reflect.runtime.universe._
+
+
+    import scala.pickling.internal._
+
+    override def pickle(coll: Map[K, V], builder: PBuilder): Unit = {
+      info(s"custom map pickler")
+      builder.hintTag(collTag)
+      builder.beginEntry(coll)
+      builder.beginCollection(coll.size)
+
+      var keyIsPrimitive = false
+      var valueIsPrimitive = false
+      val keyTag = implicitly[FastTypeTag[K]]
+      val valueTag = implicitly[FastTypeTag[V]]
+      pairTag.tpe match {
+        case tr @ TypeRef(prefix, symbol, List(ktpe, vtpe)) =>
+          info(s"key: $ktpe ${ktpe.isEffectivelyPrimitive}, value: $vtpe ${vtpe.isEffectivelyPrimitive}")
+          keyIsPrimitive = ktpe.isEffectivelyPrimitive
+          valueIsPrimitive = vtpe.isEffectivelyPrimitive
+          info(s"keyTag $keyTag, valueTag $valueTag")
+        case _ =>
+      }
+
+      debug(s"elem type: ${pairTag.tpe}")
+      for((k, v) <- coll) {
+        // output key
+        builder.hintTag(keyTag)
+        if(keyIsPrimitive) {
+          builder.hintStaticallyElidedType()
+          builder.pinHints()
+        }
+        keyPickler.pickle(k, builder)
+        if(keyIsPrimitive) {
+          builder.unpinHints()
+        }
+
+        // output value
+        builder.hintTag(valueTag)
+        if(valueIsPrimitive) {
+          builder.hintStaticallyElidedType()
+          builder.pinHints()
+        }
+        valuePickler.pickle(v, builder)
+        if(valueIsPrimitive) {
+          builder.unpinHints()
+        }
+      }
+
+      builder.endCollection
+      builder.endEntry()
+
+    }
+    override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
+      info(s"custom unpickler")
+
+      null
+    }
+
+  }
+
 
 
 
