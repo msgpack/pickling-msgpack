@@ -20,21 +20,27 @@ package msgpack {
 
   import scala.pickling.binary.{ByteArrayBuffer, ByteArray, BinaryPickleFormat}
   import xerial.core.log.Logger
+import scala.collection.immutable.Queue
+import xerial.lens.TypeUtil
 
 
-  case class MsgPackPickle(value:Array[Byte]) extends Pickle {
+case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     type ValueType = Array[Byte]
     type PickleFormatType = MsgPackPickleFormat
     override def toString = s"""MsgPackPickle(${toHEX(value)})"""
   }
 
 
+  sealed trait EncodeState
+  private case object EncodeMap extends EncodeState
+  private case object EncodeDefault extends EncodeState
+
   class MsgPackPickleBuilder(format:MsgPackPickleFormat, out:MsgPackWriter) extends PBuilder with PickleTools with Logger {
     import format._
     import MsgPackCode._
 
     private var byteBuffer: MsgPackWriter = out
-
+    private val stateStackOfElidedType = new scala.collection.mutable.Stack[EncodeState]()
 
     private[this] def mkByteBuffer(knownSize: Int): Unit = {
       if (byteBuffer == null) {
@@ -65,7 +71,10 @@ package msgpack {
           val tpe = hints.tag.tpe
           val cls = hints.tag.mirror.runtimeClass(tpe)
           debug(s"encode type name: ${hints.tag.tpe} runtime class: $cls")
-
+          if(TypeUtil.isMap(cls))
+            stateStackOfElidedType.push(EncodeMap)
+          else
+            stateStackOfElidedType.push(EncodeDefault)
 
           val tpeBytes = hints.tag.key.getBytes("UTF-8")
           tpeBytes.length match {
@@ -135,25 +144,41 @@ package msgpack {
       this
     }
 
-    def endEntry() : Unit = {
-
-     /* do nothing */
-
+    def endEntry() : Unit = withHints { hints =>
+      if(hints.isElidedType) {
+        stateStackOfElidedType.pop()
+      }
     }
 
     def beginCollection(length: Int) : PBuilder = {
-      debug(s"begin collection: $length, $currentHint")
-      if(length < (1 << 4))
-        byteBuffer.writeByte((F_ARRAY_PREFIX | length).toByte)
-      else if(length < (1 << 16)) {
-        byteBuffer.writeByte(F_ARRAY16)
-        byteBuffer.writeShort(length.toShort)
+      debug(s"begin collection: $length, $currentHint, ${stateStackOfElidedType.top}")
+
+      stateStackOfElidedType.top match {
+        case EncodeMap =>
+          if(length < (1 << 4))
+            byteBuffer.writeByte((F_FIXMAP_PREFIX | length).toByte)
+          else if(length < (1 << 16)) {
+            byteBuffer.writeByte(F_MAP16)
+            byteBuffer.writeShort(length.toShort)
+          }
+          else {
+            byteBuffer.writeByte(F_MAP32)
+            byteBuffer.writeInt(length)
+          }
+          this
+        case _ =>
+          if(length < (1 << 4))
+            byteBuffer.writeByte((F_ARRAY_PREFIX | length).toByte)
+          else if(length < (1 << 16)) {
+            byteBuffer.writeByte(F_ARRAY16)
+            byteBuffer.writeShort(length.toShort)
+          }
+          else {
+            byteBuffer.writeByte(F_ARRAY32)
+            byteBuffer.writeInt(length)
+          }
+          this
       }
-      else {
-        byteBuffer.writeByte(F_ARRAY32)
-        byteBuffer.writeInt(length)
-      }
-      this
     }
 
     def putElement(pickler: (PBuilder) => Unit) = {
@@ -316,6 +341,8 @@ package msgpack {
       val len = c match {
         case l if (l & 0xF0).toByte == F_ARRAY_PREFIX =>
           l & 0x0F
+        case l if (l & 0xF0).toByte == F_FIXMAP_PREFIX =>
+          l & 0x0F
         case F_ARRAY16 =>
           in.readInt16
         case F_ARRAY32 =>
@@ -388,6 +415,7 @@ package msgpack {
     val F_MAP32 : Byte = 0xDF.toByte
 
     val F_NEG_FIXINT_PREFIX : Byte = 0xE0.toByte
+
   }
 
   class MsgPackPickleFormat extends PickleFormat {
