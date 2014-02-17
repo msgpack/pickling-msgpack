@@ -42,14 +42,27 @@ class PicklingTest extends PicklingSpec  {
     decoded shouldBe (v)
   }
 
-  "MsgPack" should {
+  def test[A : FastTypeTag : SPickler : Unpickler](v:A) = {
+    import msgpack._
+    trace(s"pickling $v")
+    val encoded = v.pickle
+    trace(s"unpickling $encoded")
+    val decoded = encoded.unpickle[A]
+    trace(s"decoded $decoded")
+    decoded shouldBe (v)
+  }
 
-    "serialize int" in {
+
+  "MsgPack" should {
+    "serialize int" taggedAs("int") in {
       forAll { (i:Int) =>
-        check(i)
+        test(i)
       }
     }
 
+    "serialize long" taggedAs("long") in {
+      forAll { (l:Long) => test(l) }
+    }
   }
 
 

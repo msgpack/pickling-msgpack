@@ -54,20 +54,25 @@ package msgpack {
           // signed 32
           byteBuffer.writeByteAndInt(F_INT32, d)
           5
-        } else if (d < -(1 << 7)) {
+        }
+        else if (d < -(1 << 7)) {
           // signed 16
           byteBuffer.writeByteAndShort(F_INT16, d.toShort)
           3
-        } else {
+        }
+        else {
           // signed 8
-          byteBuffer.writeByteAndByte(F_INT8, d.toByte)
+          byteBuffer.writeByte(F_INT8)
+          byteBuffer.writeByte((d & 0xFF).toByte)
           2
         }
-      } else if (d < (1 << 7)) {
+      }
+      else if (d < (1 << 7)) {
         // fixnum
         byteBuffer.writeByte(d.toByte)
         1
-      } else {
+      }
+      else {
         if (d < (1 << 8)) {
           // unsigned 8
           byteBuffer.writeByteAndByte(F_UINT8, d.toByte)
@@ -187,7 +192,7 @@ package msgpack {
 
     def beginEntry(picklee: Any) = withHints { hints =>
 
-      debug(s"hints: $hints")
+      trace(s"hints: $hints")
       currentHint = hints
       mkByteBuffer(hints.knownSize)
 

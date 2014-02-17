@@ -40,16 +40,17 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
   }
 
   def readInt8 : Int = {
-    val v = (arr(pos) & 0xFF).toInt
+    val v = (arr(pos) & 0xFF)
     pos += 1
-    v
+    if(v < 0) (~0 << 8) | v else v
   }
 
 
   def readInt16 : Int = {
-    val v = (((arr(pos) & 0xFF) << 8) | (arr(pos+1) & 0xFF)).toInt
+    val p = arr(pos)
+    val v = (((p & 0xFF) << 8) | (arr(pos+1) & 0xFF))
     pos += 2
-    v
+    if(p < 0) (~0 << 16) | v else v
   }
 
   def readInt32 : Int = {
@@ -135,10 +136,14 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
   }
 
   def decodeInt : Int = {
-    val prefix = arr(pos)
+    val prefix : Byte = arr(pos)
     pos += 1
-    prefix match {
-      case l if l < 127 =>
+    //debug(f"decodeInt: prefix $prefix%02x")
+
+    val vv : Int = prefix match {
+      case l if (~l & 0x80) != 0 =>
+        prefix
+      case l if (l & 0xE0).toByte == F_NEG_FIXINT_PREFIX =>
         prefix
       case F_UINT8 =>
         readInt8
@@ -160,11 +165,9 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
 //        pos += 9
 //        v
       case F_INT8 =>
-        val v = readInt8
-        if(v < 0) v & (~0 << 8) else v
+        readInt8
       case F_INT16 =>
-        val v = readInt16
-        if(v < 0) v & (~0 << 16) else v
+        readInt16
       case F_INT32 =>
         val v = readInt32
         v
@@ -184,7 +187,7 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
       case _ =>
         throw new IllegalStateException("not an integer")
     }
-
+    vv
   }
 
   def decodeLong : Long = {
@@ -225,19 +228,21 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
       case F_INT8 =>
         val v = arr(pos)
         pos += 1
-        if(v < 0) v & (~0 << 8) else v
+        if(v < 0) v | (~0 << 8) else v
       case F_INT16 =>
         val p = arr(pos)
         val v = (((arr(pos) & 0xFF) << 8) | (arr(pos+1) & 0xFF)).toInt
         pos += 2
-        if(p < 0) v & (~0 << 16) else v
+        if(p < 0) v | (~0 << 16) else v
       case F_INT32 =>
+        val p = arr(pos)
         val v =
           (((arr(pos).asInstanceOf[Long] & 0xFF) << 24)
             | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 16)
             | ((arr(pos+2).asInstanceOf[Long] & 0xFF) << 8)
             | (arr(pos+3).asInstanceOf[Long] & 0xFF))
         pos += 4
+        if(p < 0) v | (~0 << 32) else v
         v
       case F_INT64 =>
         val v =
