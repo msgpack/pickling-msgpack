@@ -56,6 +56,8 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
       currentHint = hints
       mkByteBuffer(hints.knownSize)
 
+      var encodeTypeName = true
+
       if(picklee == null)
         byteBuffer.writeByte(F_NULL)
       else if (hints.oid != -1) {
@@ -70,26 +72,37 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
           // Type name is present
           val tpe = hints.tag.tpe
           val cls = hints.tag.mirror.runtimeClass(tpe)
-          debug(s"encode type name: ${hints.tag.tpe} runtime class: $cls")
+
+          def isTuple(c:Class[_]) = {
+            classOf[Product].isAssignableFrom(c) && c.getSimpleName.startsWith("Tuple")
+          }
+
+          info(s"encode type name: ${hints.tag.tpe} runtime class: $cls (${isTuple(cls)}), ${stateStackOfElidedType.headOption}")
+          stateStackOfElidedType.headOption match {
+            case Some(EncodeMap) if isTuple(cls) =>
+              warn("encode tuple")
+              encodeTypeName = false
+            case _ =>
+              val tpeBytes = hints.tag.key.getBytes("UTF-8")
+              tpeBytes.length match {
+                case l if l < (1 << 7) =>
+                  byteBuffer.writeByte(F_EXT8)
+                  byteBuffer.writeByte((l & 0xFF).toByte)
+                case l if l < (1 << 15) =>
+                  byteBuffer.writeByte(F_EXT16)
+                  byteBuffer.writeInt16(l)
+                case l =>
+                  byteBuffer.writeByte(F_EXT32)
+                  byteBuffer.writeInt32(l)
+              }
+              byteBuffer.writeByte(F_EXT_TYPE_NAME)
+              byteBuffer.write(tpeBytes)
+          }
+
           if(TypeUtil.isMap(cls))
             stateStackOfElidedType.push(EncodeMap)
           else
             stateStackOfElidedType.push(EncodeDefault)
-
-          val tpeBytes = hints.tag.key.getBytes("UTF-8")
-          tpeBytes.length match {
-            case l if l < (1 << 7) =>
-              byteBuffer.writeByte(F_EXT8)
-              byteBuffer.writeByte((l & 0xFF).toByte)
-            case l if l < (1 << 15) =>
-              byteBuffer.writeByte(F_EXT16)
-              byteBuffer.writeInt16(l)
-            case l =>
-              byteBuffer.writeByte(F_EXT32)
-              byteBuffer.writeInt32(l)
-          }
-          byteBuffer.writeByte(F_EXT_TYPE_NAME)
-          byteBuffer.write(tpeBytes)
         }
 
 
@@ -128,7 +141,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
           case KEY_ARRAY_BYTE =>
             byteBuffer.packByteArray(picklee.asInstanceOf[Array[Byte]])
           case _ =>
-            if(hints.isElidedType) {
+            if(encodeTypeName && hints.isElidedType) {
               byteBuffer.writeByte(F_FIXEXT1)
               byteBuffer.writeByte(F_EXT_ELIDED_TAG)
               byteBuffer.writeByte(0) // dummy
@@ -145,9 +158,6 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     }
 
     def endEntry() : Unit = withHints { hints =>
-      if(hints.isElidedType) {
-        stateStackOfElidedType.pop()
-      }
     }
 
     def beginCollection(length: Int) : PBuilder = {
@@ -187,6 +197,9 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
     }
 
     def endCollection() : Unit = {
+
+      stateStackOfElidedType.pop()
+
       // do nothing
     }
 
