@@ -14,15 +14,26 @@ package object msgpack {
   implicit val msgpackFormat = new MsgPackPickleFormat
   implicit def toMsgPackPickle(value:Array[Byte]) : MsgPackPickle = MsgPackPickle(value)
 
-  implicit def msgpackImmMapPickler[K:FastTypeTag, V:FastTypeTag](implicit keyPickler: SPickler[K], valuePickler: SPickler[V], pairTag: FastTypeTag[(K, V)], collTag: FastTypeTag[Map[K, V]], format: PickleFormat, cbf: CanBuildFrom[Map[K, V], (K, V), Map[K, V]])
+  implicit def msgpackImmMapPickler[K:FastTypeTag, V:FastTypeTag](implicit keyPickler: SPickler[K], keyUnpickler:Unpickler[K], valuePickler: SPickler[V], valueUnpickler:Unpickler[V], pairTag: FastTypeTag[(K, V)], collTag: FastTypeTag[Map[K, V]], format: PickleFormat, cbf: CanBuildFrom[Map[K, V], (K, V), Map[K, V]])
     : SPickler[Map[K, V]] with Unpickler[Map[K, V]] = new SPickler[Map[K, V]] with Unpickler[Map[K, V]] with PickleTools with Logger {
 
     override val format: PickleFormat = msgpackFormat
 
     import scala.reflect.runtime.universe._
-
-
     import scala.pickling.internal._
+
+    val keyTag = implicitly[FastTypeTag[K]]
+    val valueTag = implicitly[FastTypeTag[V]]
+    var keyIsPrimitive = false
+    var valueIsPrimitive = false
+    pairTag.tpe match {
+      case tr @ TypeRef(prefix, symbol, List(ktpe, vtpe)) =>
+        info(s"key: $ktpe ${ktpe.isEffectivelyPrimitive}, value: $vtpe ${vtpe.isEffectivelyPrimitive}")
+        keyIsPrimitive = ktpe.isEffectivelyPrimitive
+        valueIsPrimitive = vtpe.isEffectivelyPrimitive
+        info(s"keyTag $keyTag, valueTag $valueTag")
+      case _ =>
+    }
 
     override def pickle(coll: Map[K, V], builder: PBuilder): Unit = {
       info(s"custom map pickler")
@@ -30,18 +41,6 @@ package object msgpack {
       builder.beginEntry(coll)
       builder.beginCollection(coll.size)
 
-      var keyIsPrimitive = false
-      var valueIsPrimitive = false
-      val keyTag = implicitly[FastTypeTag[K]]
-      val valueTag = implicitly[FastTypeTag[V]]
-      pairTag.tpe match {
-        case tr @ TypeRef(prefix, symbol, List(ktpe, vtpe)) =>
-          info(s"key: $ktpe ${ktpe.isEffectivelyPrimitive}, value: $vtpe ${vtpe.isEffectivelyPrimitive}")
-          keyIsPrimitive = ktpe.isEffectivelyPrimitive
-          valueIsPrimitive = vtpe.isEffectivelyPrimitive
-          info(s"keyTag $keyTag, valueTag $valueTag")
-        case _ =>
-      }
 
       debug(s"elem type: ${pairTag.tpe}")
       for((k, v) <- coll) {
@@ -72,10 +71,31 @@ package object msgpack {
       builder.endEntry()
 
     }
-    override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
+    override def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
       info(s"custom unpickler")
 
-      null
+      val reader = preader.beginCollection()
+      val length = reader.readLength()
+      val builder = cbf.apply()
+      builder.sizeHint(length)
+      var i = 0
+      while(i < length) {
+        reader.readElement()
+        reader.beginEntryNoTag()
+        val key = keyUnpickler.unpickle(keyTag, reader)
+        reader.endEntry()
+
+        reader.readElement()
+        reader.beginEntryNoTag()
+        val value = valueUnpickler.unpickle(valueTag, reader)
+        reader.endEntry()
+
+        builder += ((key, value).asInstanceOf[(K, V)])
+        i += 1
+      }
+      reader.endCollection()
+
+      builder.result
     }
 
   }
@@ -329,11 +349,6 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
         }
         else if(hints.isElidedType && primitives.contains(hints.tag.key)) {
           hints.tag
-        }
-        else if(hints.tag == null && !codeStack.isEmpty && codeStack.lastOption == Some(CodeMap) ) {
-          // tuple type
-          warn("tuple")
-          "Tuple2"
         }
         else {
           // Non-elided type
