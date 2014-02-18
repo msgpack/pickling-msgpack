@@ -55,13 +55,28 @@ class PicklingTest extends PicklingSpec  {
 
   "MsgPack" should {
     "serialize int" taggedAs("int") in {
-      forAll { (i:Int) =>
-        test(i)
-      }
+      forAll { (i:Int) => test(i) }
     }
-
     "serialize long" taggedAs("long") in {
       forAll { (l:Long) => test(l) }
+    }
+    "serialize short" taggedAs("short") in {
+      forAll { (l:Short) => test(l) }
+    }
+    "serialize boolean" in {
+      forAll { (l:Boolean) => test(l) }
+    }
+    "serialize byte" in {
+      forAll { (l:Byte) => test(l) }
+    }
+    "serialize char"  in {
+        forAll { (l:Char) => test(l) }
+    }
+    "serialize float"  in {
+      forAll { (l:Float) => test(l) }
+    }
+    "serialize double" in {
+      forAll { (l:Double) => test(l) }
     }
   }
 

@@ -47,7 +47,6 @@ abstract class MsgPackWriter extends Output[Array[Byte]] with Logger {
     }
     else if (d < (1 << 7)) {
       // fixnum
-      debug(s"packByte $d")
       writeByte(d)
     }
     else {

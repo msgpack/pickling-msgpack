@@ -28,21 +28,21 @@ package object msgpack {
     var valueIsPrimitive = false
     pairTag.tpe match {
       case tr @ TypeRef(prefix, symbol, List(ktpe, vtpe)) =>
-        info(s"key: $ktpe ${ktpe.isEffectivelyPrimitive}, value: $vtpe ${vtpe.isEffectivelyPrimitive}")
+        trace(s"key: $ktpe ${ktpe.isEffectivelyPrimitive}, value: $vtpe ${vtpe.isEffectivelyPrimitive}")
         keyIsPrimitive = ktpe.isEffectivelyPrimitive
         valueIsPrimitive = vtpe.isEffectivelyPrimitive
-        info(s"keyTag $keyTag, valueTag $valueTag")
+        trace(s"keyTag $keyTag, valueTag $valueTag")
       case _ =>
     }
 
     override def pickle(coll: Map[K, V], builder: PBuilder): Unit = {
-      info(s"custom map pickler")
+      trace(s"custom map pickler")
       builder.hintTag(collTag)
       builder.beginEntry(coll)
       builder.beginCollection(coll.size)
 
 
-      debug(s"elem type: ${pairTag.tpe}")
+      trace(s"elem type: ${pairTag.tpe}")
       for((k, v) <- coll) {
         // output key
         builder.hintTag(keyTag)
@@ -72,7 +72,7 @@ package object msgpack {
 
     }
     override def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
-      info(s"custom unpickler")
+      trace(s"custom unpickler")
 
       val reader = preader.beginCollection()
       val length = reader.readLength()
@@ -207,7 +207,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
           case KEY_BYTE =>
             byteBuffer.packByte(picklee.asInstanceOf[Byte])
           case KEY_SHORT =>
-            byteBuffer.writeShort(picklee.asInstanceOf[Short])
+            byteBuffer.packInt(picklee.asInstanceOf[Short])
           case KEY_CHAR =>
             byteBuffer.packInt(picklee.asInstanceOf[Char])
           case KEY_INT =>
@@ -429,6 +429,8 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
           in.decodeInt.toByte
         case KEY_INT =>
           in.decodeInt
+        case KEY_SHORT =>
+          in.decodeInt.toShort
         case KEY_LONG =>
           in.decodeLong
         case KEY_SCALA_STRING | KEY_JAVA_STRING =>
