@@ -40,7 +40,7 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
   }
 
   def readInt8 : Int = {
-    val v = (arr(pos) & 0xFF)
+    val v = arr(pos)
     pos += 1
     if(v < 0) (~0 << 8) | v else v
   }
@@ -63,6 +63,32 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
     v
   }
 
+  def readUInt8 : Int = {
+    // 0xFF mask is needed to treat negative byte value as positive int
+    val v = arr(pos) & 0xFF
+    pos += 1
+    v
+  }
+
+  def readUInt16 : Int = {
+    // 0xFF mask is needed to treat negative byte value as positive int
+    val v = (((arr(pos) & 0xFF) << 8) | (arr(pos+1) & 0xFF))
+    pos += 2
+    v
+  }
+
+
+  def readUInt32 : Long = {
+    // 0xFF mask is needed to treat negative byte value as positive int
+    val v =
+      (((arr(pos) & 0xFF) << 24)
+        | ((arr(pos+1) & 0xFF) << 16)
+        | ((arr(pos+2) & 0xFF) << 8)
+        | (arr(pos+3) & 0xFF))
+    pos += 4
+    val lv = 0L | v
+    v
+  }
 
   def lookahead = lookahead(0)
   def lookahead(k:Int) = arr(pos+k)
@@ -139,7 +165,7 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
   def decodeInt : Int = {
     val prefix : Byte = arr(pos)
     pos += 1
-    //debug(f"decodeInt: prefix $prefix%02x")
+    trace(f"decodeInt: prefix $prefix%02x")
 
     val vv : Int = prefix match {
       case l if (~l & 0x80) != 0 =>
@@ -147,24 +173,16 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
       case l if (l & 0xE0).toByte == F_NEG_FIXINT_PREFIX =>
         prefix
       case F_UINT8 =>
-        readInt8
+        readUInt8
       case F_UINT16 =>
-        readInt16
+        readUInt16
       case F_UINT32 =>
-        readInt32
+        val v = readUInt32
+        if(v > Integer.MAX_VALUE)
+          throw new IllegalStateException(s"Cannod decode UINT32 $v")
+        v.toInt
       case F_UINT64 =>
         throw new IllegalStateException("Cannot decode UINT64")
-//        val v =
-//          (((arr(pos+1) & 0xFF) << 54)
-//            | ((arr(pos+2) & 0xFF) << 48)
-//            | ((arr(pos+3) & 0xFF) << 40)
-//            | ((arr(pos+4) & 0xFF) << 32)
-//            | ((arr(pos+5) & 0xFF) << 24)
-//            | ((arr(pos+6) & 0xFF) << 16)
-//            | ((arr(pos+7) & 0xFF) << 8)
-//            | (arr(pos+8) & 0xFF)).toInt
-//        pos += 9
-//        v
       case F_INT8 =>
         readInt8
       case F_INT16 =>
@@ -174,17 +192,6 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
         v
       case F_INT64 =>
         throw new IllegalStateException("Cannot decode INT64")
-//        val v =
-//          (((arr(pos+1) & 0xFF) << 54)
-//            | ((arr(pos+2) & 0xFF) << 48)
-//            | ((arr(pos+3) & 0xFF) << 40)
-//            | ((arr(pos+4) & 0xFF) << 32)
-//            | ((arr(pos+5) & 0xFF) << 24)
-//            | ((arr(pos+6) & 0xFF) << 16)
-//            | ((arr(pos+7) & 0xFF) << 8)
-//            | (arr(pos+8) & 0xFF)).toInt
-//        pos += 9
-//        v
       case _ =>
         throw new IllegalStateException("not an integer")
     }
@@ -200,17 +207,11 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
       case l if (l & 0xE0).toByte == F_NEG_FIXINT_PREFIX =>
         prefix
       case F_UINT8 =>
-        readInt8
+        readUInt8
       case F_UINT16 =>
-        readInt16
+        readUInt16
       case F_UINT32 =>
-        val v =
-          (((arr(pos).asInstanceOf[Long] & 0xFF) << 24)
-            | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 16)
-            | ((arr(pos+2).asInstanceOf[Long] & 0xFF) << 8)
-            | (arr(pos+3).asInstanceOf[Long] & 0xFF))
-        pos += 4
-        v
+        readUInt32
       case F_UINT64 =>
         val v =
           (((arr(pos).asInstanceOf[Long] & 0xFF) << 56)
@@ -221,6 +222,8 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
             | ((arr(pos+5).asInstanceOf[Long] & 0xFF) << 16)
             | ((arr(pos+6).asInstanceOf[Long] & 0xFF) << 8)
             | (arr(pos+7).asInstanceOf[Long] & 0xFF))
+        if(v < 0)
+          throw new IllegalStateException("cannot decode uint64 value largher than 2^63-1")
         pos += 8
         v
       case F_INT8 =>
@@ -228,15 +231,7 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
       case F_INT16 =>
         readInt16
       case F_INT32 =>
-        val p = arr(pos)
-        val v =
-          (((arr(pos).asInstanceOf[Long] & 0xFF) << 24)
-            | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 16)
-            | ((arr(pos+2).asInstanceOf[Long] & 0xFF) << 8)
-            | (arr(pos+3).asInstanceOf[Long] & 0xFF))
-        pos += 4
-        if(p < 0) v | (~0 << 32) else v
-        v
+        readInt32
       case F_INT64 =>
         val v =
           (((arr(pos).asInstanceOf[Long] & 0xFF) << 56)

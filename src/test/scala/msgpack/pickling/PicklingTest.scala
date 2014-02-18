@@ -53,7 +53,10 @@ class PicklingTest extends PicklingSpec  {
   }
 
 
-  "MsgPack" should {
+
+
+  "Pickling" should {
+
     "serialize int" taggedAs("int") in {
       forAll { (i:Int) => test(i) }
     }
@@ -61,6 +64,8 @@ class PicklingTest extends PicklingSpec  {
       forAll { (l:Long) => test(l) }
     }
     "serialize short" taggedAs("short") in {
+      test(209.toShort)
+      test(-36.toShort)
       forAll { (l:Short) => test(l) }
     }
     "serialize boolean" in {
@@ -70,7 +75,7 @@ class PicklingTest extends PicklingSpec  {
       forAll { (l:Byte) => test(l) }
     }
     "serialize char"  in {
-        forAll { (l:Char) => test(l) }
+      forAll { (l:Char) => test(l) }
     }
     "serialize float"  in {
       forAll { (l:Float) => test(l) }
@@ -78,10 +83,10 @@ class PicklingTest extends PicklingSpec  {
     "serialize double" in {
       forAll { (l:Double) => test(l) }
     }
-  }
 
-
-  "Pickling" should {
+    "serialize string" taggedAs("str") in {
+      forAll { (s:String) => test(s) }
+    }
 
     "serialize objects in JSON format" in {
 

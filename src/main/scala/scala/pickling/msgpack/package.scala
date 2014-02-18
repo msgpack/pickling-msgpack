@@ -207,7 +207,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
           case KEY_BYTE =>
             byteBuffer.packByte(picklee.asInstanceOf[Byte])
           case KEY_SHORT =>
-            byteBuffer.packInt(picklee.asInstanceOf[Short])
+            byteBuffer.packShort(picklee.asInstanceOf[Short])
           case KEY_CHAR =>
             byteBuffer.packInt(picklee.asInstanceOf[Char])
           case KEY_INT =>

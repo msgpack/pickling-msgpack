@@ -60,6 +60,37 @@ abstract class MsgPackWriter extends Output[Array[Byte]] with Logger {
    * Write a packed integer value
    * @param d
    */
+  def packShort(d: Short) {
+    if (d < -(1 << 5)) {
+      if (d < -(1 << 7)) {
+        // signed 16
+        writeByteAndShort(F_INT16, d.toShort)
+      }
+      else {
+        // signed 8
+        writeByte(F_INT8)
+        writeByte((d & 0xFF).toByte)
+      }
+    }
+    else if (d < (1 << 7)) {
+      // fixnum
+      writeByte(d.toByte)
+    }
+    else {
+      if (d < (1 << 8)) {
+        // unsigned 8
+        writeByteAndByte(F_UINT8, d.toByte)
+      } else {
+        // unsigned 16
+        writeByteAndShort(F_UINT16, d.toShort)
+      }
+    }
+  }
+
+  /**
+   * Write a packed integer value
+   * @param d
+   */
   def packInt(d: Int) {
     if (d < -(1 << 5)) {
       if (d < -(1 << 15)) {
