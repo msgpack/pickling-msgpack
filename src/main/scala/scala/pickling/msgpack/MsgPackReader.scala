@@ -208,7 +208,7 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
             | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 16)
             | ((arr(pos+2).asInstanceOf[Long] & 0xFF) << 8)
             | (arr(pos+3).asInstanceOf[Long] & 0xFF))
-        pos += 8
+        pos += 4
         v
       case F_UINT64 =>
         val v =

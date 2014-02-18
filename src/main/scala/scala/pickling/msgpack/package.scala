@@ -205,7 +205,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
           case KEY_BOOLEAN =>
             byteBuffer.writeByte(if(picklee.asInstanceOf[Boolean]) F_TRUE else F_FALSE)
           case KEY_BYTE =>
-            byteBuffer.packInt(picklee.asInstanceOf[Byte])
+            byteBuffer.packByte(picklee.asInstanceOf[Byte])
           case KEY_SHORT =>
             byteBuffer.writeShort(picklee.asInstanceOf[Short])
           case KEY_CHAR =>
@@ -329,7 +329,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def beginEntryNoTag() : String = {
       val res : Any = withHints { hints =>
-        trace(f"beginEntry $hints ${in.lookahead}%02x")
+        debug(f"beginEntry $hints ${in.lookahead}%02x")
         if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
           val la1 = in.lookahead
           la1 match {
