@@ -36,11 +36,11 @@ class PicklingTest extends PicklingSpec  {
 
   def check[A : FastTypeTag : SPickler : Unpickler](v:A) = {
     import msgpack._
-    debug(s"pickling $v")
+    trace(s"pickling $v")
     val encoded = v.pickle
-    debug(s"unpickling $encoded")
+    trace(s"unpickling $encoded")
     val decoded = encoded.unpickle[A]
-    debug(s"decoded $decoded")
+    trace(s"decoded $decoded")
     decoded shouldBe (v)
   }
 
