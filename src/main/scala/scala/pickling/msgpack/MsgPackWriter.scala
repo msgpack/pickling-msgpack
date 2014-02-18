@@ -238,12 +238,11 @@ class MsgPackOutputArray(size: Int) extends MsgPackWriter {
 class MsgPackOutputBuffer() extends MsgPackWriter {
   private var buffer: Array[Byte] = null
   private var capacity = 0
-  private var cursor = 0
   private var wrap: ByteBuffer = null
 
   private def makeBuffer(newSize: Int): Array[Byte] = {
     val newBuffer = new Array[Byte](newSize)
-    if (this.cursor > 0)
+    if (cursor > 0)
       Array.copy(buffer, 0, newBuffer, 0, cursor)
     newBuffer
   }
@@ -251,11 +250,15 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
   private def resize(newSize: Int) {
     buffer = makeBuffer(newSize)
     capacity = newSize
+    val currentCursor = cursor
     wrap = ByteBuffer.wrap(buffer)
-    wrap.position(cursor)
+    wrap.position(currentCursor)
   }
 
-  private def ensureSize(targetSize: Int) {
+  private def cursor = if(wrap == null) 0 else wrap.position
+
+  private def ensureSize(additionalSize: Int) {
+    val targetSize = cursor + additionalSize
     if (capacity < targetSize || capacity == 0) {
       var newSize = if (capacity == 0) 16 else capacity * 2
       while (newSize < targetSize) newSize *= 2
@@ -265,13 +268,13 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
 
 
   def result() = {
-    if (cursor == 0)
+    if (wrap.position == 0)
       Array.empty[Byte]
-    if (cursor == buffer.length)
+    if (wrap.position() == buffer.length)
       buffer
     else {
-      val ret = new Array[Byte](cursor)
-      Array.copy(buffer, 0, ret, 0, cursor)
+      val ret = new Array[Byte](wrap.position)
+      Array.copy(buffer, 0, ret, 0, wrap.position)
       ret
     }
   }
@@ -310,31 +313,28 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
   }
 
   def writeByte(v: Byte) = {
-    ensureSize(cursor + 1)
+    ensureSize(1)
     wrap.put(v)
-    cursor += 1
   }
 
   def writeShort(v: Short) = {
-    ensureSize(cursor + 2)
+    ensureSize(2)
     wrap.putShort(v)
-    cursor += 2
   }
 
   def writeInt(v: Int) = {
-    ensureSize(cursor + 4)
+    ensureSize(4)
     wrap.putInt(v)
-    cursor += 4
   }
 
   def writeInt16(v: Int) = {
-    ensureSize(cursor + 2)
+    ensureSize(2)
     writeByte(((v >>> 8) & 0xFF).toByte)
     writeByte((v & 0xFF).toByte)
   }
 
   def writeInt32(v: Int) = {
-    ensureSize(cursor + 4)
+    ensureSize(4)
     writeByte(((v >>> 24) & 0xFF).toByte)
     writeByte(((v >>> 16) & 0xFF).toByte)
     writeByte(((v >>> 8) & 0xFF).toByte)
@@ -343,39 +343,33 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
 
 
   def writeChar(v: Char) = {
-    ensureSize(cursor + 2)
+    ensureSize(2)
     wrap.putChar(v)
-    cursor += 2
   }
 
   def writeLong(v: Long) = {
-    ensureSize(cursor + 8)
+    ensureSize(8)
     wrap.putLong(v)
-    cursor += 8
   }
 
   def writeFloat(v: Float) = {
-    ensureSize(cursor + 4)
+    ensureSize(4)
     wrap.putFloat(v)
-    cursor += 4
   }
 
   def writeDouble(v: Double) = {
-    ensureSize(cursor + 8)
+    ensureSize(8)
     wrap.putDouble(v)
-    cursor += 8
   }
 
   def write(b: Array[Byte], off: Int, len: Int) = {
-    ensureSize(cursor + len)
+    ensureSize(len)
     wrap.put(b, off, len)
-    cursor += len
   }
 
   def write(bb: ByteBuffer) = {
     val len = bb.remaining()
-    ensureSize(cursor + len)
+    ensureSize(len)
     wrap.put(bb)
-    cursor += len
   }
 }
