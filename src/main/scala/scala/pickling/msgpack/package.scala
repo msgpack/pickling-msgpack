@@ -141,7 +141,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def beginEntry(picklee: Any) = withHints { hints =>
 
-      debug(s"hints: $hints")
+      trace(s"hints: $hints")
       currentHint = hints
       mkByteBuffer(hints.knownSize)
 
@@ -329,7 +329,7 @@ case class MsgPackPickle(value:Array[Byte]) extends Pickle {
 
     def beginEntryNoTag() : String = {
       val res : Any = withHints { hints =>
-        debug(f"beginEntry $hints ${in.lookahead}%02x")
+        trace(f"beginEntry $hints ${in.lookahead}%02x")
         if(hints.isElidedType && nullablePrimitives.contains(hints.tag.key)) {
           val la1 = in.lookahead
           la1 match {

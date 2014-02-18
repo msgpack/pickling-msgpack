@@ -212,7 +212,6 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
         pos += 4
         v
       case F_UINT64 =>
-        debug("decode uint64")
         val v =
           (((arr(pos).asInstanceOf[Long] & 0xFF) << 56)
             | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 48)
@@ -239,7 +238,6 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
         if(p < 0) v | (~0 << 32) else v
         v
       case F_INT64 =>
-        debug("decode int64")
         val v =
           (((arr(pos).asInstanceOf[Long] & 0xFF) << 56)
             | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 48)

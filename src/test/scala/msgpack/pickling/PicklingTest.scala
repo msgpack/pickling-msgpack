@@ -46,7 +46,7 @@ class PicklingTest extends PicklingSpec  {
     import msgpack._
     trace(s"pickling $v")
     val encoded = v.pickle
-    debug(s"unpickling $encoded")
+    trace(s"unpickling $encoded")
     val decoded = encoded.unpickle[A]
     trace(s"decoded $decoded")
     decoded shouldBe (v)
