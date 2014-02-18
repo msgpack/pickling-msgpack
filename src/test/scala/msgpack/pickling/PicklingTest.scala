@@ -21,6 +21,8 @@ import scala.reflect.ClassTag
 import org.scalatest.Tag
 import scala.language.existentials
 import org.scalatest.prop.PropertyChecks
+import scala.util.Success
+import scala.util.Try
 
 
 /**
@@ -85,7 +87,11 @@ class PicklingTest extends PicklingSpec  {
     }
 
     "serialize string" taggedAs("str") in {
-      forAll { (s:String) => test(s) }
+      forAll { (s:String) =>
+        whenever(Try(s.getBytes("UTF-8")).isSuccess) {
+          test(s)
+        }
+      }
     }
 
     "serialize objects in JSON format" in {
