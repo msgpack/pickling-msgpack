@@ -139,23 +139,16 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
     pos += 1
     val strLen : Int = prefix match {
       case l if (l & 0xE0).toByte == F_FIXSTR_PREFIX =>
-        val len = l & 0x1F
-        len
+        l & 0x1F
       case F_STR8 =>
-        val len = arr(pos)
-        pos += 1
-        len
+        readUInt8
       case F_STR16 =>
-        val len = ((arr(pos) << 8) & 0xFF) | (arr(pos+1) & 0xFF)
-        pos += 2
-        len
+        readUInt16
       case F_STR32 =>
-        val len =((arr(pos) << 24) & 0xFF) |
-            ((arr(pos+1) << 16) & 0xFF) |
-            ((arr(pos+2) << 8) & 0xFF) |
-            (arr(pos+3) & 0xFF)
-        pos += 4
-        len
+        val len = readUInt32
+        if(len > Int.MaxValue)
+          throw new IllegalStateException(f"cannot decode string longer than 2^31-1: $len%,d")
+        len.toInt
       case _ =>
         throw invalidCode(prefix, "Not a string prefix")
     }

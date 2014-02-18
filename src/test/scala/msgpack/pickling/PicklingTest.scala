@@ -88,9 +88,7 @@ class PicklingTest extends PicklingSpec  {
 
     "serialize string" taggedAs("str") in {
       forAll { (s:String) =>
-        whenever(Try(s.getBytes("UTF-8")).isSuccess) {
-          test(s)
-        }
+        test(s)
       }
     }
 
