@@ -28,6 +28,7 @@ abstract class MsgPackWriter extends Output[Array[Byte]] with Logger {
   def writeInt(v: Int): Unit
   def writeInt16(v: Int): Unit
   def writeInt32(v: Int): Unit
+  def writeInt64(v: Long): Unit
 
   def writeLong(v: Long): Unit
   def writeFloat(v: Float): Unit
@@ -100,10 +101,13 @@ abstract class MsgPackWriter extends Output[Array[Byte]] with Logger {
       if (d < -(1L << 15)) {
         if (d < -(1L << 31)) {
           // signed 64
-          writeByteAndLong(F_INT64, d)
+          debug(f"packLong signed 64: ${d}%02x $d")
+          writeByte(F_INT64)
+          writeInt64(d)
         }
         else {
           // signed 32
+          debug("packLong signed32")
           writeByteAndInt(F_INT32, d.toInt)
         }
       } else if (d < -(1 << 7)) {
@@ -220,6 +224,18 @@ class MsgPackOutputArray(size: Int) extends MsgPackWriter {
     writeByte(((v >>> 8) & 0xFF).toByte)
     writeByte((v & 0xFF).toByte)
   }
+
+  def writeInt64(v: Long)  {
+    writeByte(((v >>> 56) & 0xFF).toByte)
+    writeByte(((v >>> 48) & 0xFF).toByte)
+    writeByte(((v >>> 40) & 0xFF).toByte)
+    writeByte(((v >>> 32) & 0xFF).toByte)
+    writeByte(((v >>> 24) & 0xFF).toByte)
+    writeByte(((v >>> 16) & 0xFF).toByte)
+    writeByte(((v >>> 8) & 0xFF).toByte)
+    writeByte((v & 0xFF).toByte)
+  }
+
 
   def writeChar(v: Char) = arr.putChar(v)
   def writeLong(v: Long) = arr.putLong(v)
@@ -341,6 +357,17 @@ class MsgPackOutputBuffer() extends MsgPackWriter {
     writeByte((v & 0xFF).toByte)
   }
 
+  def writeInt64(v: Long)  {
+    ensureSize(8)
+    writeByte(((v >>> 56) & 0xFF).toByte)
+    writeByte(((v >>> 48) & 0xFF).toByte)
+    writeByte(((v >>> 40) & 0xFF).toByte)
+    writeByte(((v >>> 32) & 0xFF).toByte)
+    writeByte(((v >>> 24) & 0xFF).toByte)
+    writeByte(((v >>> 16) & 0xFF).toByte)
+    writeByte(((v >>> 8) & 0xFF).toByte)
+    writeByte((v & 0xFF).toByte)
+  }
 
   def writeChar(v: Char) = {
     ensureSize(2)

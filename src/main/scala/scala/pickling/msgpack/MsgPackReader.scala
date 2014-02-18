@@ -63,6 +63,7 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
     v
   }
 
+
   def lookahead = lookahead(0)
   def lookahead(k:Int) = arr(pos+k)
 
@@ -211,8 +212,9 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
         pos += 4
         v
       case F_UINT64 =>
+        debug("decode uint64")
         val v =
-          (((arr(pos) & 0xFF).toLong << 54)
+          (((arr(pos).asInstanceOf[Long] & 0xFF) << 56)
             | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 48)
             | ((arr(pos+2).asInstanceOf[Long] & 0xFF) << 40)
             | ((arr(pos+3).asInstanceOf[Long] & 0xFF) << 32)
@@ -237,8 +239,9 @@ class MsgPackByteArrayReader(arr:Array[Byte]) extends MsgPackReader with Logger 
         if(p < 0) v | (~0 << 32) else v
         v
       case F_INT64 =>
+        debug("decode int64")
         val v =
-          (((arr(pos).asInstanceOf[Long] & 0xFF) << 54)
+          (((arr(pos).asInstanceOf[Long] & 0xFF) << 56)
             | ((arr(pos+1).asInstanceOf[Long] & 0xFF) << 48)
             | ((arr(pos+2).asInstanceOf[Long] & 0xFF) << 40)
             | ((arr(pos+3).asInstanceOf[Long] & 0xFF) << 32)
